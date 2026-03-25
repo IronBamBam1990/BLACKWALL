@@ -58,12 +58,13 @@ On March 19, 2026, attackers compromised **Trivy** (a security scanner), used st
               ╚════════════════════╦════════════════════╝
                                    ║
      ╔═════════════════════════════╩═════════════════════════════╗
-     ║                    MONITOR GRID (24 modules)               ║
+     ║                    MONITOR GRID (30 modules)               ║
      ║                                                            ║
      ║  Network    │ ARP Guard   │ Process     │ File Integrity   ║
      ║  Outbound   │ Registry    │ Event Log   │ USB Monitor      ║
      ║  Bandwidth  │ Canary Tkns │ Anti-DDoS   │ Anti-Keylogger   ║
      ║  Privacy    │ Browser     │ Rate Limit  │ Behavior Engine  ║
+     ║  RAM Check  │ TeamPCP Det │             │                  ║
      ╚═════════════════════════════╦═════════════════════════════╝
                                    ║
      ╔═════════════════════════════╩═════════════════════════════╗
@@ -235,6 +236,7 @@ Edit `config/config.json` to customize:
 psutil>=5.9.0         # System monitoring
 rich>=13.0.0          # Terminal UI
 aiohttp>=3.9.0        # Async HTTP (threat feeds, PyPI API)
+flask>=3.0.0          # Web dashboard backend
 scapy>=2.5.0          # Network analysis
 cryptography>=41.0.0  # Log encryption
 geoip2>=4.8.0         # GeoIP lookups (optional)
@@ -253,6 +255,10 @@ geoip2>=4.8.0         # GeoIP lookups (optional)
 4. **Supply chain modules** continuously audit your installed packages, monitor credential files, scan dependency trees, and watch Docker containers — catching the exact attack patterns used in real-world supply chain compromises.
 
 5. **Web Dashboard** shows everything in real-time across 6 pages. Auto-opens in Edge on launch for a full browser-based monitoring experience.
+
+6. **RAM Checker** continuously scans all running processes for credential exposure in environment variables, crypto miners, credential dumpers (mimikatz), reverse shells, and memory pressure anomalies.
+
+7. **TeamPCP Detector** hunts for specific indicators of compromise from the March 2026 TeamPCP/Trivy/LiteLLM attack — the largest supply chain compromise in history, yielding 500,000 stolen credentials across five package ecosystems.
 
 ---
 
