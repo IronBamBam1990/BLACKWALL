@@ -19,7 +19,40 @@ sys.path.insert(0, BLACKWALL_DIR)
 sys.path.insert(0, os.path.join(BLACKWALL_DIR, "blackwall"))
 os.chdir(BLACKWALL_DIR)
 
-import webview
+import subprocess
+import shutil
+import signal
+
+
+def _open_app_window(url):
+    """Open browser in app mode (no address bar - looks native)."""
+    # Try Edge first (built into Windows)
+    edge_paths = [
+        os.path.expandvars(r"%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"),
+        os.path.expandvars(r"%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"),
+        shutil.which("msedge"),
+    ]
+    for p in edge_paths:
+        if p and os.path.isfile(p):
+            subprocess.Popen([p, f"--app={url}", "--new-window",
+                              f"--window-size=1400,900"])
+            return
+
+    # Try Chrome
+    chrome_paths = [
+        os.path.expandvars(r"%ProgramFiles%\Google\Chrome\Application\chrome.exe"),
+        os.path.expandvars(r"%ProgramFiles(x86)%\Google\Chrome\Application\chrome.exe"),
+        shutil.which("chrome"),
+    ]
+    for p in chrome_paths:
+        if p and os.path.isfile(p):
+            subprocess.Popen([p, f"--app={url}", "--new-window",
+                              f"--window-size=1400,900"])
+            return
+
+    # Fallback: default browser
+    import webbrowser
+    webbrowser.open(url)
 
 
 def main():
@@ -125,9 +158,18 @@ def main():
         dependency_auditor=dependency_auditor, container_monitor=container_monitor,
     )
 
-    # Start Flask in background thread
-    dashboard.start_async(host="127.0.0.1", port=5000)
-    time.sleep(1)  # Let Flask start
+    # Start Flask in background thread (start_async is actually async, use sync start in thread)
+    flask_app = dashboard._create_app()
+
+    def _run_flask():
+        import logging
+        log = logging.getLogger("werkzeug")
+        log.setLevel(logging.ERROR)
+        flask_app.run(host="127.0.0.1", port=5000, debug=False, use_reloader=False)
+
+    flask_thread = threading.Thread(target=_run_flask, daemon=True)
+    flask_thread.start()
+    time.sleep(1.5)  # Let Flask start
 
     # Start async backend in background thread
     async def _backend():
@@ -173,17 +215,18 @@ def main():
     backend_thread = threading.Thread(target=lambda: asyncio.run(_backend()), daemon=True)
     backend_thread.start()
 
-    # Open native window
-    window = webview.create_window(
-        "BLACKWALL v4.0",
-        url="http://127.0.0.1:5000",
-        width=1400,
-        height=900,
-        min_size=(1000, 600),
-        background_color="#080810",
-        text_select=True,
-    )
-    webview.start(debug=False)
+    # Open app window (Edge/Chrome in app mode - looks native)
+    url = "http://127.0.0.1:5000"
+    print(f"\n[BLACKWALL] Opening {url}")
+    print("[BLACKWALL] Press Ctrl+C to stop.\n")
+    _open_app_window(url)
+
+    # Keep main thread alive until Ctrl+C
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n[BLACKWALL] Shutting down...")
 
 
 if __name__ == "__main__":
