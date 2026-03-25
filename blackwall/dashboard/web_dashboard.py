@@ -316,15 +316,38 @@ class WebDashboard:
             result = []
             seen = set()
 
+            # Port-to-service name mapping for catch-all
+            PORT_NAMES = {
+                23: "TELNET-REAL", 3389: "RDP-REAL", 5900: "VNC", 5901: "VNC-1", 5902: "VNC-2",
+                80: "HTTP-80", 443: "HTTPS", 8000: "HTTP-8000", 8443: "HTTPS-8443",
+                8888: "HTTP-8888", 9090: "HTTP-9090", 9443: "HTTPS-9443",
+                1433: "MSSQL", 1434: "MSSQL-UDP", 3306: "MYSQL-REAL", 5432: "POSTGRES",
+                6379: "REDIS", 27017: "MONGODB", 27018: "MONGO-2", 9200: "ELASTIC",
+                9300: "ELASTIC-T", 5984: "COUCHDB", 11211: "MEMCACHED",
+                5672: "RABBITMQ", 15672: "RABBIT-UI", 9092: "KAFKA",
+                21: "FTP-REAL", 69: "TFTP", 873: "RSYNC",
+                25: "SMTP-25", 110: "POP3", 143: "IMAP", 465: "SMTPS",
+                587: "SMTP-587", 993: "IMAPS", 995: "POP3S",
+                389: "LDAP", 636: "LDAPS", 88: "KERBEROS",
+                161: "SNMP", 162: "SNMP-TRAP", 514: "SYSLOG",
+                10050: "ZABBIX-A", 10051: "ZABBIX-S",
+                2375: "DOCKER", 2376: "DOCKER-TLS", 6443: "K8S-API", 10250: "KUBELET",
+                8081: "NEXUS", 8082: "ARTIFACTORY", 9000: "SONARQUBE",
+                4444: "C2-4444", 5555: "C2-5555", 6666: "C2-6666", 6667: "IRC",
+                1337: "C2-LEET", 31337: "C2-ELITE", 12345: "C2-12345", 54321: "C2-54321",
+                4443: "C2-4443", 9001: "TOR-OR", 9030: "TOR-DIR",
+                1883: "MQTT", 8883: "MQTT-TLS", 502: "MODBUS", 47808: "BACNET",
+                25565: "MINECRAFT", 27015: "SOURCE-ENG",
+            }
+
             for name, cfg in hp_config.items():
                 if name == "catchall":
-                    continue  # skip catchall in the grid (many ports)
+                    continue  # handled separately below
                 port = cfg.get("port", 0)
                 enabled = cfg.get("enabled", False)
                 is_running = name.lower() in running_names
                 status = "ON" if is_running else ("OFF" if enabled else "DISABLED")
                 hits = by_type.get(name, 0)
-                # Determine last connection time for this honeypot type
                 last_conn = "--"
                 if last_event and last_event.get("honeypot", "").lower() == name.lower():
                     ts = last_event.get("timestamp", "")
@@ -344,17 +367,28 @@ class WebDashboard:
                 })
                 seen.add(name.lower())
 
-            # Also add any running honeypots not in config (e.g. catchall)
-            for hp in self.honeypot_mgr.honeypots:
-                if hp.name.lower() not in seen and hp.name.lower() != "catchall":
-                    hits = by_type.get(hp.name, 0)
-                    result.append({
-                        "name": hp.name.upper(),
-                        "port": hp.port,
-                        "hits": hits,
-                        "status": "ON",
-                        "last_connection": "Active" if hits > 0 else "--",
-                    })
+            # Add catch-all ports as individual honeypot entries
+            catchall_running = "catchall" in running_names
+            catchall_cfg = hp_config.get("catchall", {})
+            catchall_enabled = catchall_cfg.get("enabled", True)
+            catchall_hits = by_type.get("catchall", 0)
+
+            # Get the actual ports from the catch-all honeypot
+            from blackwall.honeypots.catchall_honeypot import CATCH_ALL_PORTS
+            dedicated_ports = {cfg.get("port", 0) for n, cfg in hp_config.items() if n != "catchall"}
+
+            for port in CATCH_ALL_PORTS:
+                if port in dedicated_ports:
+                    continue  # skip ports already covered by dedicated honeypots
+                svc_name = PORT_NAMES.get(port, f"PORT-{port}")
+                status = "ON" if catchall_running else ("OFF" if catchall_enabled else "DISABLED")
+                result.append({
+                    "name": svc_name,
+                    "port": port,
+                    "hits": 0,  # catch-all doesn't track per-port hits yet
+                    "status": status,
+                    "last_connection": "--",
+                })
 
             return result
         except Exception:
