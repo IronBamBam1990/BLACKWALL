@@ -1230,13 +1230,22 @@ class BlackwallGUI:
         if not self._net_connections_frame:
             return
 
-        # Use textbox approach: format connections as text (no widget churn)
-        connections = []
-        if nm:
-            try:
-                connections = nm.get_active_connections()
-            except Exception:
-                pass
+        # Fetch connections in background thread to avoid blocking GUI
+        if not hasattr(self, "_net_cache"):
+            self._net_cache = []
+            self._net_cache_busy = False
+
+        if not self._net_cache_busy and nm:
+            self._net_cache_busy = True
+            def _fetch():
+                try:
+                    self._net_cache = nm.get_active_connections()[:80]
+                except Exception:
+                    self._net_cache = []
+                self._net_cache_busy = False
+            threading.Thread(target=_fetch, daemon=True).start()
+
+        connections = self._net_cache
 
         # Apply filter
         filter_text = self._net_search_var.get().strip().lower() if self._net_search_var else ""
@@ -1248,45 +1257,38 @@ class BlackwallGUI:
                 or filter_text in c.get("process", "").lower()
             ]
 
-        # Build text content - reuse existing textbox if possible
-        if not hasattr(self, "_net_textbox"):
-            # First time: replace scrollable frame with textbox
-            self._net_connections_frame.grid_forget()
-            self._net_textbox = ctk.CTkTextbox(
-                self._net_connections_frame.master,
+        # Build text in the existing scrollable frame using a single label
+        if not hasattr(self, "_net_text_label"):
+            # Create a single label inside the scrollable frame
+            for w in self._net_connections_frame.winfo_children():
+                try:
+                    w.destroy()
+                except Exception:
+                    pass
+            self._net_text_label = ctk.CTkLabel(
+                self._net_connections_frame,
+                text="Loading...",
                 font=("Consolas", 12),
-                fg_color=C_BG_DARK, text_color=C_TEXT,
-                state="disabled", wrap="none",
+                text_color=C_TEXT,
+                anchor="nw",
+                justify="left",
             )
-            self._net_textbox.grid(row=1, column=0, sticky="nsew", padx=16, pady=(0, 8))
-            self._net_textbox.tag_config("header", foreground=C_CYAN)
-            self._net_textbox.tag_config("established", foreground=C_GREEN)
-            self._net_textbox.tag_config("listen", foreground=C_YELLOW)
-            self._net_textbox.tag_config("other", foreground=C_TEXT_DIM)
+            self._net_text_label.grid(row=0, column=0, sticky="nw", padx=8, pady=4)
 
-        self._net_textbox.configure(state="normal")
-        self._net_textbox.delete("1.0", "end")
-
-        # Header
-        header = f"{'LOCAL PORT':<12} {'REMOTE IP':<22} {'REMOTE PORT':<14} {'STATUS':<16} {'PROCESS':<20}\n"
-        header += "-" * 84 + "\n"
-        self._net_textbox.insert("end", header, "header")
-
-        for conn in connections[:80]:
+        # Format as text
+        lines = [f"{'PORT':<8} {'REMOTE IP':<22} {'RPORT':<8} {'STATUS':<14} {'PROCESS'}"]
+        lines.append("-" * 70)
+        for conn in connections:
             local = conn.get("local_addr", "")
             remote = conn.get("remote_addr", "")
             status = conn.get("status", "")
-            proc = conn.get("process", "")
-
+            proc = conn.get("process", "")[:18]
             lport = local.rsplit(":", 1)[-1] if ":" in local else local
             rip = remote.rsplit(":", 1)[0] if ":" in remote else remote
             rport = remote.rsplit(":", 1)[-1] if ":" in remote else ""
+            lines.append(f"{lport:<8} {rip:<22} {rport:<8} {status:<14} {proc}")
 
-            tag = "established" if status == "ESTABLISHED" else "listen" if status == "LISTEN" else "other"
-            line = f"{lport:<12} {rip:<22} {rport:<14} {status:<16} {proc:<20}\n"
-            self._net_textbox.insert("end", line, tag)
-
-        self._net_textbox.configure(state="disabled")
+        self._net_text_label.configure(text="\n".join(lines))
 
         # Update banned/whitelist (lightweight - small lists)
         self._update_banned_display()
@@ -1512,58 +1514,63 @@ class BlackwallGUI:
             except Exception:
                 pass
 
+        # Supply chain scan results - skip heavy updates, just show status text
         if not self._supply_frame:
             return
 
-        # Use textbox - no widget churn
-        if not hasattr(self, "_supply_textbox"):
-            for w in self._supply_frame.winfo_children():
-                w.destroy()
-            self._supply_textbox = ctk.CTkTextbox(
-                self._supply_frame, font=("Consolas", 12),
-                fg_color=C_BG_DARK, text_color=C_TEXT,
-                state="disabled", wrap="none",
-            )
-            self._supply_textbox.pack(fill="both", expand=True, padx=4, pady=4)
-            self._supply_textbox.tag_config("header", foreground=C_CYAN)
-            self._supply_textbox.tag_config("ok", foreground=C_GREEN)
-            self._supply_textbox.tag_config("warn", foreground=C_YELLOW)
-            self._supply_textbox.tag_config("crit", foreground=C_RED)
-
-        self._supply_textbox.configure(state="normal")
-        self._supply_textbox.delete("1.0", "end")
-
-        header = f"{'PACKAGE':<30} {'VERSION':<15} {'STATUS':<12} {'ISSUE'}\n"
-        header += "-" * 80 + "\n"
-        self._supply_textbox.insert("end", header, "header")
-
-        if not da:
-            self._supply_textbox.insert("end", "  Dependency auditor not loaded.\n", "warn")
-            self._supply_textbox.configure(state="disabled")
+        # Only update once every 5 cycles (15 seconds) to avoid churn
+        if not hasattr(self, "_supply_update_counter"):
+            self._supply_update_counter = 0
+        self._supply_update_counter += 1
+        if self._supply_update_counter % 5 != 1:
             return
 
-        try:
-            alerts = getattr(da, "_alerts", [])
-            if alerts:
-                for a in alerts[-50:]:
-                    sev = a.get("severity", "LOW")
-                    tag = {"CRITICAL": "crit", "HIGH": "warn", "MEDIUM": "warn"}.get(sev, "ok")
-                    pkg = a.get("package", a.get("type", ""))[:28]
-                    ver = a.get("version", "")[:13]
-                    desc = a.get("description", "")[:40]
-                    line = f"{pkg:<30} {ver:<15} {sev:<12} {desc}\n"
-                    self._supply_textbox.insert("end", line, tag)
-            else:
-                stats = {}
-                if hasattr(da, "get_stats"):
-                    stats = da.get_stats() or {}
-                total = stats.get("total_packages", "?")
-                self._supply_textbox.insert("end", f"  Packages tracked: {total}\n", "ok")
-                self._supply_textbox.insert("end", "  No issues found yet. Scan running in background.\n", "ok")
-        except Exception:
-            self._supply_textbox.insert("end", "  Scan in progress...\n", "warn")
+        # Clear and rebuild (small number of items, infrequent)
+        for w in self._supply_frame.winfo_children():
+            try:
+                w.destroy()
+            except Exception:
+                pass
 
-        self._supply_textbox.configure(state="disabled")
+        try:
+            stats = {}
+            if da and hasattr(da, "get_stats"):
+                stats = da.get_stats() or {}
+
+            alerts = getattr(da, "_alerts", []) if da else []
+
+            info_lines = [
+                f"Total packages: {stats.get('total_packages', '?')}",
+                f"Direct dependencies: {stats.get('direct_deps', '?')}",
+                f"Transitive dependencies: {stats.get('transitive_deps', '?')}",
+                f"Issues found: {len(alerts)}",
+            ]
+
+            for i, line in enumerate(info_lines):
+                ctk.CTkLabel(
+                    self._supply_frame, text=line,
+                    font=("Consolas", 13), text_color=C_TEXT, anchor="w",
+                ).grid(row=i, column=0, sticky="w", padx=12, pady=2)
+
+            if alerts:
+                ctk.CTkLabel(
+                    self._supply_frame, text="\nRecent findings:",
+                    font=("Consolas", 13), text_color=C_CYAN, anchor="w",
+                ).grid(row=len(info_lines), column=0, sticky="w", padx=12, pady=(8, 2))
+
+                for j, a in enumerate(alerts[-15:]):
+                    sev = a.get("severity", "LOW")
+                    color = SEVERITY_COLORS.get(sev, C_TEXT)
+                    desc = a.get("description", "")[:70]
+                    ctk.CTkLabel(
+                        self._supply_frame, text=f"[{sev}] {desc}",
+                        font=("Consolas", 11), text_color=color, anchor="w",
+                    ).grid(row=len(info_lines) + 1 + j, column=0, sticky="w", padx=12, pady=1)
+        except Exception:
+            ctk.CTkLabel(
+                self._supply_frame, text="Scan in progress...",
+                font=("Consolas", 13), text_color=C_YELLOW,
+            ).grid(row=0, column=0, padx=12, pady=8)
 
     # ------------------------------------------------------------------
     # Public API

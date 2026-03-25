@@ -7,475 +7,998 @@
 <style>
 *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
 :root{
-  --bg:#0a0a0f;--panel:#12121a;--border:#1a1a2e;
-  --cyan:#00f0ff;--magenta:#ff00aa;--green:#00ff41;
-  --red:#ff2040;--yellow:#ffcc00;--dim-green:#1a6b2a;
-  --row-alt:#0f0f18;--text:#c8c8d4;--text-dim:#6a6a7a;
+  --bg:#080810;--panel:#0e0e1a;--border:#1a1a30;
+  --cyan:#00d4ff;--magenta:#ff00aa;--green:#00ff41;
+  --red:#ff2244;--warn:#ffaa22;--text:#c8c8d4;--dim:#555566;
+  --sidebar:220px;
 }
-html,body{height:100%;background:var(--bg);color:var(--text);font-family:Consolas,'Courier New',monospace;font-size:13px;overflow-x:hidden}
+html,body{height:100%;background:var(--bg);color:var(--text);
+  font-family:'Consolas','Courier New',monospace;font-size:13px;overflow:hidden}
 
-/* grid-line background */
-body::before{
-  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
-  background-image:
-    linear-gradient(rgba(0,240,255,.03) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(0,240,255,.03) 1px,transparent 1px);
-  background-size:40px 40px;
-}
+/* grid background */
+body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(ellipse at 50% 50%,rgba(0,212,255,0.03) 0%,transparent 70%),
+    linear-gradient(rgba(0,212,255,0.02) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(0,212,255,0.02) 1px,transparent 1px);
+  background-size:100% 100%,40px 40px,40px 40px}
 
-/* scanline overlay */
-body::after{
-  content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
-  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.08) 2px,rgba(0,0,0,.08) 4px);
-  animation:scanmove 8s linear infinite;
-}
-@keyframes scanmove{0%{background-position:0 0}100%{background-position:0 100px}}
+/* scanline */
+body::after{content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.06) 2px,rgba(0,0,0,0.06) 4px);
+  opacity:0.03}
 
-#app{position:relative;z-index:1;display:flex;flex-direction:column;min-height:100vh}
+#app{position:relative;z-index:1;display:flex;height:100vh}
 
-/* HEADER */
-header{
-  padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;
-  border-bottom:2px solid;border-image:linear-gradient(90deg,var(--cyan),var(--magenta)) 1;
-  background:linear-gradient(180deg,#10101a 0%,var(--bg) 100%);
-}
-.hdr-title{
-  font-size:18px;font-weight:bold;color:var(--cyan);letter-spacing:3px;
-  text-shadow:0 0 10px var(--cyan),0 0 30px rgba(0,240,255,.3);
-}
-.hdr-time{color:var(--text-dim);font-size:12px;letter-spacing:1px}
-.hdr-badge{
-  padding:4px 14px;border-radius:4px;font-size:11px;font-weight:bold;letter-spacing:2px;
-  background:rgba(0,255,65,.12);color:var(--green);border:1px solid var(--green);
-  text-shadow:0 0 6px var(--green);animation:pulse-g 2s ease-in-out infinite;
-}
-@keyframes pulse-g{0%,100%{box-shadow:0 0 4px rgba(0,255,65,.3)}50%{box-shadow:0 0 12px rgba(0,255,65,.6)}}
+/* ---- SIDEBAR ---- */
+.sidebar{width:var(--sidebar);min-width:var(--sidebar);background:#0a0a14;
+  border-right:1px solid var(--border);display:flex;flex-direction:column;
+  user-select:none;z-index:10}
+.sidebar-brand{padding:20px 16px 4px;text-align:center}
+.sidebar-brand h1{font-size:16px;letter-spacing:4px;color:var(--cyan);
+  text-shadow:0 0 12px rgba(0,212,255,0.5),0 0 40px rgba(0,212,255,0.2);
+  animation:glow 3s ease-in-out infinite alternate}
+@keyframes glow{0%{text-shadow:0 0 8px rgba(0,212,255,0.4),0 0 30px rgba(0,212,255,0.15)}
+  100%{text-shadow:0 0 16px rgba(0,212,255,0.7),0 0 50px rgba(0,212,255,0.3)}}
+.sidebar-version{text-align:center;padding:2px 0 16px;font-size:10px;color:var(--dim);
+  letter-spacing:2px}
+.sidebar-version span{background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.2);
+  padding:1px 8px;border-radius:3px;color:var(--cyan);font-size:9px}
 
-/* TABS */
-.tabs{
-  display:flex;gap:0;padding:0 20px;background:#0c0c14;border-bottom:1px solid var(--border);flex-wrap:wrap;
-}
-.tab{
-  padding:10px 18px;cursor:pointer;font-size:11px;letter-spacing:2px;text-transform:uppercase;
-  color:var(--text-dim);border-bottom:2px solid transparent;transition:all .2s;user-select:none;
-}
-.tab:hover{color:var(--cyan)}
-.tab.active{color:var(--cyan);border-bottom-color:var(--cyan);text-shadow:0 0 8px rgba(0,240,255,.4)}
+.sidebar-nav{flex:1;padding:8px 0}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 16px;cursor:pointer;
+  color:var(--dim);border-left:3px solid transparent;transition:all 0.2s;font-size:12px;
+  letter-spacing:1px}
+.nav-item:hover{color:var(--text);background:rgba(0,212,255,0.03)}
+.nav-item.active{color:var(--cyan);border-left-color:var(--cyan);
+  background:rgba(0,212,255,0.05);text-shadow:0 0 8px rgba(0,212,255,0.3)}
+.nav-icon{width:20px;text-align:center;font-weight:bold;font-size:13px}
 
-/* TAB CONTENT */
-.tab-content{flex:1;padding:16px 20px;display:none;opacity:0;transition:opacity .3s}
-.tab-content.visible{display:block;opacity:1}
+.sidebar-footer{padding:12px 16px;border-top:1px solid var(--border);font-size:11px}
+.barrier-status{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.pulse-dot{width:8px;height:8px;border-radius:50%;background:var(--green);
+  box-shadow:0 0 6px var(--green);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 4px var(--green)}
+  50%{opacity:0.6;box-shadow:0 0 12px var(--green)}}
+.sidebar-stats{color:var(--dim);font-size:10px;letter-spacing:1px}
+.sidebar-stats .hl{color:var(--cyan)}
 
-/* GRID */
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-@media(max-width:900px){.grid{grid-template-columns:1fr}}
+/* ---- MAIN CONTENT ---- */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.page{display:none;flex:1;overflow-y:auto;padding:16px 20px}
+.page.active{display:flex;flex-direction:column;gap:14px}
+.page::-webkit-scrollbar{width:6px}
+.page::-webkit-scrollbar-track{background:transparent}
+.page::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.page::-webkit-scrollbar-thumb:hover{background:#2a2a44}
 
-/* PANELS */
-.panel{
-  background:var(--panel);border:1px solid var(--border);border-radius:8px;
-  padding:0;overflow:hidden;transition:box-shadow .25s;
-}
-.panel:hover{box-shadow:0 0 16px rgba(0,240,255,.12)}
-.panel-hdr{
-  padding:10px 14px;font-size:11px;font-weight:bold;text-transform:uppercase;
-  letter-spacing:2px;color:var(--cyan);border-bottom:1px solid rgba(0,240,255,.2);
-}
-.panel-body{padding:10px 14px;max-height:320px;overflow-y:auto}
+/* ---- PANELS ---- */
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:6px;
+  overflow:hidden;transition:box-shadow 0.25s;
+  box-shadow:0 0 20px rgba(0,212,255,0.05)}
+.panel:hover{box-shadow:0 0 24px rgba(0,212,255,0.1)}
+.panel-hdr{padding:10px 14px;font-size:11px;font-weight:bold;text-transform:uppercase;
+  letter-spacing:2px;color:var(--cyan);border-bottom:1px solid rgba(0,212,255,0.15);
+  display:flex;align-items:center;justify-content:space-between}
+.panel-hdr .hdr-actions{display:flex;gap:6px}
+.panel-body{padding:12px 14px;overflow-y:auto;max-height:calc(100vh - 200px)}
 .panel-body::-webkit-scrollbar{width:4px}
 .panel-body::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
 
-/* TABLES */
+/* ---- GRID LAYOUTS ---- */
+.row{display:flex;gap:14px;flex-wrap:wrap}
+.row > *{flex:1;min-width:200px}
+.col-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.col-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.col-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media(max-width:1100px){.col-4{grid-template-columns:1fr 1fr}.col-3{grid-template-columns:1fr 1fr}}
+@media(max-width:800px){.col-4,.col-3,.col-2{grid-template-columns:1fr}}
+
+/* ---- STAT CARDS ---- */
+.stat-card{background:linear-gradient(180deg,rgba(0,212,255,0.04) 0%,var(--panel) 100%);
+  border:1px solid var(--border);border-radius:6px;padding:14px 16px;text-align:center;
+  transition:box-shadow 0.2s}
+.stat-card:hover{box-shadow:0 0 16px rgba(0,212,255,0.08)}
+.stat-val{font-size:24px;font-weight:bold;letter-spacing:1px}
+.stat-lbl{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:2px;margin-top:4px}
+.c-cyan{color:var(--cyan)}.c-red{color:var(--red)}.c-green{color:var(--green)}
+.c-warn{color:var(--warn)}.c-magenta{color:var(--magenta)}
+
+/* ---- TABLES ---- */
 table{width:100%;border-collapse:collapse;font-size:12px}
-th{text-align:left;padding:6px 8px;color:var(--text-dim);font-weight:normal;font-size:10px;text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border)}
+th{text-align:left;padding:6px 8px;color:var(--dim);font-weight:normal;font-size:10px;
+  text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--border)}
 td{padding:5px 8px;border:none}
-tr:nth-child(even){background:var(--row-alt)}
-tr:hover td{background:rgba(0,240,255,.04)}
+tr:nth-child(even){background:rgba(14,14,26,0.5)}
+tr:hover td{background:rgba(0,212,255,0.03)}
 
-/* STAT CARDS */
-.stats{display:flex;flex-wrap:wrap;gap:10px}
-.stat{
-  flex:1;min-width:110px;background:var(--bg);border:1px solid var(--border);border-radius:6px;
-  padding:10px 12px;text-align:center;
-}
-.stat-val{font-size:18px;font-weight:bold;color:var(--cyan)}
-.stat-lbl{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px;margin-top:4px}
+/* ---- BADGES ---- */
+.badge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:bold;
+  letter-spacing:1px;display:inline-block;white-space:nowrap}
+.b-crit{background:rgba(255,34,68,0.2);color:var(--red);border:1px solid rgba(255,34,68,0.4);
+  animation:pulse-r 1.5s ease-in-out infinite}
+.b-high{background:rgba(255,34,68,0.12);color:#ff6070;border:1px solid rgba(255,34,68,0.25)}
+.b-med{background:rgba(255,170,34,0.12);color:var(--warn);border:1px solid rgba(255,170,34,0.25)}
+.b-low{background:rgba(0,255,65,0.08);color:#40a050;border:1px solid rgba(0,255,65,0.15)}
+.b-info{background:rgba(0,212,255,0.1);color:var(--cyan);border:1px solid rgba(0,212,255,0.2)}
+.b-on{background:rgba(0,255,65,0.15);color:var(--green);border:1px solid rgba(0,255,65,0.3)}
+.b-off{background:rgba(255,34,68,0.1);color:var(--red);border:1px solid rgba(255,34,68,0.2)}
+@keyframes pulse-r{0%,100%{box-shadow:0 0 2px rgba(255,34,68,0.3)}
+  50%{box-shadow:0 0 10px rgba(255,34,68,0.6)}}
 
-/* BADGES */
-.badge{padding:2px 8px;border-radius:3px;font-size:10px;font-weight:bold;letter-spacing:1px;display:inline-block}
-.badge-on{background:rgba(0,255,65,.15);color:var(--green);border:1px solid var(--dim-green);text-shadow:0 0 4px var(--green)}
-.badge-crit{background:rgba(255,32,64,.2);color:var(--red);border:1px solid rgba(255,32,64,.4);animation:pulse-r 1.5s ease-in-out infinite}
-.badge-high{background:rgba(255,32,64,.12);color:#ff6070;border:1px solid rgba(255,32,64,.25)}
-.badge-med{background:rgba(255,204,0,.12);color:var(--yellow);border:1px solid rgba(255,204,0,.25)}
-.badge-low{background:rgba(0,255,65,.08);color:#40a050;border:1px solid rgba(0,255,65,.15)}
-.badge-info{background:rgba(0,240,255,.1);color:var(--cyan);border:1px solid rgba(0,240,255,.2)}
-@keyframes pulse-r{0%,100%{box-shadow:0 0 2px rgba(255,32,64,.3)}50%{box-shadow:0 0 10px rgba(255,32,64,.6)}}
+/* ---- BUTTONS ---- */
+.btn{padding:5px 12px;border:1px solid var(--border);border-radius:4px;
+  background:rgba(0,212,255,0.08);color:var(--cyan);cursor:pointer;font-family:inherit;
+  font-size:11px;letter-spacing:1px;transition:all 0.2s;white-space:nowrap}
+.btn:hover{background:rgba(0,212,255,0.15);border-color:var(--cyan);
+  box-shadow:0 0 8px rgba(0,212,255,0.2)}
+.btn:active{transform:scale(0.97)}
+.btn-danger{background:rgba(255,34,68,0.1);color:var(--red);border-color:rgba(255,34,68,0.3)}
+.btn-danger:hover{background:rgba(255,34,68,0.2);border-color:var(--red)}
+.btn-green{background:rgba(0,255,65,0.1);color:var(--green);border-color:rgba(0,255,65,0.3)}
+.btn-green:hover{background:rgba(0,255,65,0.2);border-color:var(--green)}
+.btn-sm{padding:3px 8px;font-size:10px}
+.btn:disabled{opacity:0.4;cursor:not-allowed}
 
-/* PROGRESS BARS */
-.prog-wrap{margin:8px 0}
+/* ---- TOGGLE SWITCH ---- */
+.toggle{position:relative;width:40px;height:20px;cursor:pointer;display:inline-block}
+.toggle input{opacity:0;width:0;height:0;position:absolute}
+.toggle-track{position:absolute;inset:0;background:rgba(255,34,68,0.2);border:1px solid rgba(255,34,68,0.4);
+  border-radius:10px;transition:all 0.3s}
+.toggle-thumb{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;
+  background:var(--red);transition:all 0.3s;box-shadow:0 0 4px rgba(255,34,68,0.5)}
+.toggle input:checked ~ .toggle-track{background:rgba(0,255,65,0.2);border-color:rgba(0,255,65,0.4)}
+.toggle input:checked ~ .toggle-thumb{left:22px;background:var(--green);
+  box-shadow:0 0 4px rgba(0,255,65,0.5)}
+
+/* ---- INPUTS ---- */
+.input{background:var(--bg);border:1px solid var(--border);border-radius:4px;
+  padding:6px 10px;color:var(--text);font-family:inherit;font-size:12px;
+  outline:none;transition:border-color 0.2s}
+.input:focus{border-color:var(--cyan);box-shadow:0 0 6px rgba(0,212,255,0.15)}
+.input::placeholder{color:var(--dim)}
+.input-row{display:flex;gap:6px;align-items:center;margin:6px 0}
+
+/* ---- PROGRESS BARS ---- */
+.prog-wrap{margin:6px 0}
 .prog-lbl{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px}
-.prog-lbl span:first-child{color:var(--text-dim)}
-.prog-lbl span:last-child{color:var(--cyan)}
+.prog-lbl span:first-child{color:var(--dim)}.prog-lbl span:last-child{color:var(--cyan)}
 .prog-bar{height:8px;background:var(--bg);border-radius:4px;overflow:hidden;border:1px solid var(--border)}
-.prog-fill{height:100%;border-radius:4px;transition:width .5s}
-.prog-fill.cpu{background:linear-gradient(90deg,var(--cyan),var(--magenta))}
-.prog-fill.ram{background:linear-gradient(90deg,var(--green),var(--cyan))}
-.prog-fill.disk{background:linear-gradient(90deg,var(--yellow),var(--red))}
+.prog-fill{height:100%;border-radius:4px;transition:width 0.6s ease}
+.pf-cpu{background:linear-gradient(90deg,var(--cyan),var(--magenta))}
+.pf-ram{background:linear-gradient(90deg,var(--green),var(--cyan))}
+.pf-disk{background:linear-gradient(90deg,var(--warn),var(--red))}
 
-/* FOOTER */
-footer{
-  padding:8px 20px;text-align:center;font-size:11px;color:var(--text-dim);
-  border-top:1px solid var(--border);background:#0c0c14;letter-spacing:1px;
-}
-footer .hl{color:var(--cyan)}
+/* ---- ATTACK LOG ---- */
+.log-box{background:var(--bg);border:1px solid var(--border);border-radius:4px;
+  padding:8px;font-size:11px;line-height:1.6;overflow-y:auto;max-height:300px;
+  font-family:'Consolas',monospace}
+.log-box::-webkit-scrollbar{width:4px}
+.log-box::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.log-crit{color:var(--red)}.log-high{color:#ff6070}.log-med{color:var(--warn)}
+.log-low{color:#40a050}.log-info{color:var(--dim)}
+
+/* ---- TOAST ---- */
+.toast-container{position:fixed;bottom:20px;right:20px;z-index:10000;display:flex;
+  flex-direction:column;gap:6px;pointer-events:none}
+.toast{padding:10px 16px;border-radius:6px;font-size:11px;letter-spacing:1px;
+  animation:toast-in 0.3s ease,toast-out 0.3s ease 2.7s forwards;
+  pointer-events:auto;max-width:320px}
+.toast-ok{background:rgba(0,255,65,0.15);border:1px solid rgba(0,255,65,0.3);color:var(--green)}
+.toast-err{background:rgba(255,34,68,0.15);border:1px solid rgba(255,34,68,0.3);color:var(--red)}
+.toast-info{background:rgba(0,212,255,0.12);border:1px solid rgba(0,212,255,0.25);color:var(--cyan)}
+@keyframes toast-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes toast-out{from{opacity:1}to{opacity:0}}
+
+/* ---- CONNECTING OVERLAY ---- */
+.connecting{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9998;
+  text-align:center;display:none}
+.connecting.show{display:block}
+.connecting h2{color:var(--cyan);font-size:14px;letter-spacing:4px;
+  animation:glow 2s ease-in-out infinite alternate}
+.connecting p{color:var(--dim);font-size:11px;margin-top:8px}
+
+/* ---- SETTINGS FORM ---- */
+.form-section{margin-bottom:20px}
+.form-section h3{font-size:12px;color:var(--cyan);letter-spacing:2px;text-transform:uppercase;
+  margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.form-row{display:flex;align-items:center;gap:12px;margin:8px 0}
+.form-label{font-size:11px;color:var(--dim);min-width:140px;letter-spacing:1px}
+.form-check{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text)}
+.form-check input[type="checkbox"]{accent-color:var(--cyan)}
 </style>
 </head>
 <body>
 <div id="app">
 
-<header>
-  <div class="hdr-title">&diams; BLACKWALL v4.0 &diams;</div>
-  <div class="hdr-time" id="hdr-time">--:--:--</div>
-  <div class="hdr-badge" id="hdr-badge">BARRIER ACTIVE</div>
-</header>
-
-<nav class="tabs" id="tabs">
-  <div class="tab active" data-tab="0">Overview</div>
-  <div class="tab" data-tab="1">Threat Intel</div>
-  <div class="tab" data-tab="2">Integrity</div>
-  <div class="tab" data-tab="3">Defense</div>
-  <div class="tab" data-tab="4">Supply Chain</div>
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sidebar-brand"><h1>BLACKWALL</h1></div>
+  <div class="sidebar-version"><span>v4.0</span></div>
+  <div class="sidebar-nav" id="sidebar-nav">
+    <div class="nav-item active" data-page="dashboard"><span class="nav-icon">&gt;</span>Dashboard</div>
+    <div class="nav-item" data-page="honeypots"><span class="nav-icon">H</span>Honeypots</div>
+    <div class="nav-item" data-page="network"><span class="nav-icon">N</span>Network</div>
+    <div class="nav-item" data-page="threats"><span class="nav-icon">T</span>Threats</div>
+    <div class="nav-item" data-page="supply"><span class="nav-icon">S</span>Supply Chain</div>
+    <div class="nav-item" data-page="settings"><span class="nav-icon">C</span>Settings</div>
+  </div>
+  <div class="sidebar-footer">
+    <div class="barrier-status"><div class="pulse-dot"></div><span style="color:var(--green);font-size:10px;letter-spacing:2px">BARRIER ACTIVE</span></div>
+    <div class="sidebar-stats">Ev:<span class="hl" id="sb-ev">0</span> | Ban:<span class="hl" id="sb-ban">0</span></div>
+  </div>
 </nav>
 
-<!-- TAB 0: OVERVIEW -->
-<div class="tab-content visible" id="tab-0">
-<div class="grid">
-  <div class="panel"><div class="panel-hdr">Honeypots</div><div class="panel-body"><table><thead><tr><th>Name</th><th>Port</th><th>Hits</th><th>Status</th></tr></thead><tbody id="t-honeypots"></tbody></table></div></div>
-  <div class="panel"><div class="panel-hdr">Alerts</div><div class="panel-body"><table><thead><tr><th>Time</th><th>Severity</th><th>Type</th><th>IP</th><th>Description</th></tr></thead><tbody id="t-alerts"></tbody></table></div></div>
-  <div class="panel"><div class="panel-hdr">Banned IPs</div><div class="panel-body"><table><thead><tr><th>IP</th><th>Reason</th><th>Severity</th><th>Firewall</th></tr></thead><tbody id="t-banned"></tbody></table></div></div>
-  <div class="panel"><div class="panel-hdr">Network</div><div class="panel-body"><div class="stats" id="s-network"></div></div></div>
-</div>
+<!-- MAIN -->
+<div class="main">
+
+<!-- PAGE: DASHBOARD -->
+<div class="page active" id="page-dashboard">
+  <div class="col-4" id="dash-stats"></div>
+  <div class="panel" style="flex:1;display:flex;flex-direction:column">
+    <div class="panel-hdr">Live Attack Feed<div class="hdr-actions"><button class="btn btn-sm" onclick="clearFeed()">Clear</button></div></div>
+    <div class="panel-body log-box" id="attack-feed" style="flex:1;max-height:none"></div>
+  </div>
+  <div class="col-2">
+    <div class="panel">
+      <div class="panel-hdr">Network Stats</div>
+      <div class="panel-body" id="dash-netstats"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-hdr">System</div>
+      <div class="panel-body" id="dash-system"></div>
+    </div>
+  </div>
 </div>
 
-<!-- TAB 1: THREAT INTEL -->
-<div class="tab-content" id="tab-1">
-<div class="grid">
-  <div class="panel"><div class="panel-hdr">Top Countries</div><div class="panel-body"><table><thead><tr><th>CC</th><th>Country</th><th>Hits</th></tr></thead><tbody id="t-countries"></tbody></table></div></div>
-  <div class="panel"><div class="panel-hdr">Threat Feeds</div><div class="panel-body"><table><thead><tr><th>Feed</th><th>IPs</th><th>Last Update</th></tr></thead><tbody id="t-feeds"></tbody></table></div></div>
-  <div class="panel"><div class="panel-hdr">Top Attackers</div><div class="panel-body"><table><thead><tr><th>IP</th><th>Hits</th><th>Country</th><th>ThreatIntel</th></tr></thead><tbody id="t-attackers"></tbody></table></div></div>
-  <div class="panel"><div class="panel-hdr">System</div><div class="panel-body" id="s-system1"></div></div>
-</div>
-</div>
-
-<!-- TAB 2: INTEGRITY -->
-<div class="tab-content" id="tab-2">
-<div class="grid">
-  <div class="panel"><div class="panel-hdr">ARP Guard</div><div class="panel-body"><div class="stats" id="s-arp"></div></div></div>
-  <div class="panel"><div class="panel-hdr">File Integrity</div><div class="panel-body"><div class="stats" id="s-fim"></div></div></div>
-  <div class="panel"><div class="panel-hdr">Processes</div><div class="panel-body"><table><thead><tr><th>Time</th><th>Process</th><th>Parent</th><th>Severity</th></tr></thead><tbody id="t-procs"></tbody></table></div></div>
-  <div class="panel"><div class="panel-hdr">System</div><div class="panel-body" id="s-system2"></div></div>
-</div>
+<!-- PAGE: HONEYPOTS -->
+<div class="page" id="page-honeypots">
+  <div class="panel" style="flex:1">
+    <div class="panel-hdr">Honeypot Grid
+      <div class="hdr-actions">
+        <button class="btn btn-green btn-sm" onclick="apiPost('/api/honeypot/start_all',{})">Start All</button>
+        <button class="btn btn-danger btn-sm" onclick="apiPost('/api/honeypot/stop_all',{})">Stop All</button>
+      </div>
+    </div>
+    <div class="panel-body">
+      <table>
+        <thead><tr><th>Name</th><th>Port</th><th>Status</th><th>Hits</th><th>Last Connection</th></tr></thead>
+        <tbody id="hp-table"></tbody>
+      </table>
+    </div>
+  </div>
 </div>
 
-<!-- TAB 3: DEFENSE -->
-<div class="tab-content" id="tab-3">
-<div class="grid">
-  <div class="panel"><div class="panel-hdr">Threat Scores</div><div class="panel-body"><table><thead><tr><th>IP</th><th>Score</th><th>Severity</th><th>Country</th></tr></thead><tbody id="t-scores"></tbody></table></div></div>
-  <div class="panel"><div class="panel-hdr">Canary &amp; USB</div><div class="panel-body"><div class="stats" id="s-canary"></div></div></div>
-  <div class="panel"><div class="panel-hdr">Event Log</div><div class="panel-body"><table><thead><tr><th>Time</th><th>Event</th><th>Severity</th></tr></thead><tbody id="t-events"></tbody></table></div></div>
-  <div class="panel"><div class="panel-hdr">Bandwidth &amp; Registry</div><div class="panel-body"><div class="stats" id="s-bw"></div></div></div>
-</div>
+<!-- PAGE: NETWORK -->
+<div class="page" id="page-network">
+  <div class="col-2" style="flex:1">
+    <div class="panel" style="display:flex;flex-direction:column">
+      <div class="panel-hdr">Active Connections <span class="badge b-info" id="conn-count" style="margin-left:8px">0</span>
+        <div class="hdr-actions"><button class="btn btn-sm" onclick="pollNow()">Refresh</button></div>
+      </div>
+      <div class="input-row" style="padding:8px 14px 0">
+        <input class="input" id="conn-filter" placeholder="Filter by IP, port, process..." style="flex:1" oninput="filterConns()">
+      </div>
+      <div class="panel-body" style="flex:1;max-height:none">
+        <table>
+          <thead><tr><th>Port</th><th>Remote IP</th><th>Remote Port</th><th>Status</th><th>Process</th><th></th></tr></thead>
+          <tbody id="conn-table"></tbody>
+        </table>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px">
+      <div class="panel" style="flex:1">
+        <div class="panel-hdr">Banned IPs</div>
+        <div class="panel-body">
+          <div class="input-row">
+            <input class="input" id="ban-ip-input" placeholder="IP address..." style="flex:1">
+            <button class="btn btn-danger btn-sm" onclick="manualBan()">Ban</button>
+          </div>
+          <table>
+            <thead><tr><th>IP</th><th>Severity</th><th>Reason</th><th></th></tr></thead>
+            <tbody id="ban-table"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-hdr">Whitelist</div>
+        <div class="panel-body">
+          <div class="input-row">
+            <input class="input" id="wl-input" placeholder="CIDR (e.g. 10.0.0.0/8)" style="flex:1">
+            <button class="btn btn-green btn-sm" onclick="addWhitelist()">Add</button>
+          </div>
+          <table>
+            <thead><tr><th>CIDR</th><th></th></tr></thead>
+            <tbody id="wl-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<!-- TAB 4: SUPPLY CHAIN -->
-<div class="tab-content" id="tab-4">
-<div class="grid">
-  <div class="panel"><div class="panel-hdr">Supply Chain Guardian</div><div class="panel-body"><div class="stats" id="s-supply"></div></div></div>
-  <div class="panel"><div class="panel-hdr">Credential Vault</div><div class="panel-body"><div class="stats" id="s-creds"></div></div></div>
-  <div class="panel"><div class="panel-hdr">Dependency Audit</div><div class="panel-body"><div class="stats" id="s-deps"></div></div></div>
-  <div class="panel"><div class="panel-hdr">Container Security</div><div class="panel-body"><div class="stats" id="s-container"></div></div></div>
-</div>
+<!-- PAGE: THREATS -->
+<div class="page" id="page-threats">
+  <div class="col-2" style="flex:1">
+    <div style="display:flex;flex-direction:column;gap:14px;flex:2">
+      <div class="panel" style="flex:1">
+        <div class="panel-hdr">Threat Scores</div>
+        <div class="panel-body">
+          <table>
+            <thead><tr><th>IP</th><th>Score</th><th>Severity</th><th>Country</th><th>HPs Hit</th><th></th></tr></thead>
+            <tbody id="score-table"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel" style="flex:1">
+        <div class="panel-hdr">IDS Attack Log<div class="hdr-actions"><button class="btn btn-sm" onclick="clearIDS()">Clear</button></div></div>
+        <div class="panel-body log-box" id="ids-log" style="max-height:260px"></div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:14px;flex:1">
+      <div class="panel">
+        <div class="panel-hdr">Threat Intel Feeds</div>
+        <div class="panel-body">
+          <table>
+            <thead><tr><th>Feed</th><th>IPs</th><th>Updated</th></tr></thead>
+            <tbody id="feeds-table"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-hdr">Top Countries</div>
+        <div class="panel-body">
+          <table>
+            <thead><tr><th>CC</th><th>Country</th><th>Hits</th></tr></thead>
+            <tbody id="countries-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
-<footer id="footer">
-  Ev:<span class="hl" id="f-ev">0</span> | Ban:<span class="hl" id="f-ban">0</span> | Alert:<span class="hl" id="f-alert">0</span> | The Wall Holds. | Keys:1-5
-</footer>
-
+<!-- PAGE: SUPPLY CHAIN -->
+<div class="page" id="page-supply">
+  <div class="panel">
+    <div class="panel-hdr">Supply Chain Security
+      <div class="hdr-actions"><button class="btn btn-sm" onclick="apiPost('/api/scan/supply_chain',{})">Run Full Scan</button></div>
+    </div>
+    <div class="panel-body">
+      <div class="col-4" id="supply-stats"></div>
+    </div>
+  </div>
+  <div class="col-2">
+    <div class="panel" style="flex:2">
+      <div class="panel-hdr">Findings</div>
+      <div class="panel-body" id="supply-findings" style="min-height:200px"></div>
+    </div>
+    <div class="panel" style="flex:1">
+      <div class="panel-hdr">Module Status</div>
+      <div class="panel-body" id="supply-modules"></div>
+    </div>
+  </div>
 </div>
+
+<!-- PAGE: SETTINGS -->
+<div class="page" id="page-settings">
+  <div class="panel" style="flex:1">
+    <div class="panel-hdr">Configuration</div>
+    <div class="panel-body" style="max-height:none">
+      <div class="form-section">
+        <h3>Honeypot Ports</h3>
+        <div id="cfg-ports"></div>
+      </div>
+      <div class="form-section">
+        <h3>Alert Settings</h3>
+        <div class="form-check"><input type="checkbox" id="cfg-sound" checked><label for="cfg-sound">Enable alert sounds</label></div>
+        <div class="form-check"><input type="checkbox" id="cfg-toast" checked><label for="cfg-toast">Show toast notifications</label></div>
+      </div>
+      <div class="form-section">
+        <h3>Auto-Ban Settings</h3>
+        <div class="form-row">
+          <span class="form-label">Auto-ban enabled</span>
+          <label class="toggle"><input type="checkbox" id="cfg-autoban" checked><span class="toggle-track"></span><span class="toggle-thumb"></span></label>
+        </div>
+        <div class="form-row">
+          <span class="form-label">Ban threshold (hits)</span>
+          <input class="input" id="cfg-threshold" type="number" value="5" style="width:80px">
+        </div>
+      </div>
+      <div class="form-section">
+        <h3>Whitelist</h3>
+        <div id="cfg-whitelist"></div>
+        <div class="input-row" style="margin-top:8px">
+          <input class="input" id="cfg-wl-add" placeholder="Add CIDR..." style="width:200px">
+          <button class="btn btn-green btn-sm" onclick="addWhitelist()">Add</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:20px">
+        <button class="btn" onclick="saveConfig()">Save Configuration</button>
+        <button class="btn" onclick="exportConfig()">Export Config</button>
+        <button class="btn" onclick="document.getElementById('cfg-import').click()">Import Config</button>
+        <input type="file" id="cfg-import" accept=".json" style="display:none" onchange="importConfig(event)">
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+</div><!-- /app -->
+
+<div class="toast-container" id="toast-box"></div>
+<div class="connecting" id="connecting"><h2>CONNECTING TO BLACKWALL...</h2><p>Establishing secure link to barrier systems</p></div>
 
 <script>
 (function(){
 'use strict';
 
-/* --- Helpers --- */
+/* ================================================================
+   STATE
+   ================================================================ */
+var S = {
+  page: 'dashboard',
+  data: null,
+  connected: false,
+  feedEntries: [],
+  idsEntries: [],
+  connData: [],
+  pollTimer: null,
+  configCache: {}
+};
+
+/* ================================================================
+   HELPERS
+   ================================================================ */
+function esc(s){ if(s==null) return ''; var d=document.createElement('div'); d.textContent=String(s); return d.innerHTML }
+function $(id){ return document.getElementById(id) }
 function fmtBytes(b){
-  if(b==null)return'--';
-  if(b<1024)return b+'B';
-  if(b<1048576)return(b/1024).toFixed(1)+'KB';
-  if(b<1073741824)return(b/1048576).toFixed(1)+'MB';
-  return(b/1073741824).toFixed(2)+'GB';
+  if(b==null) return '--';
+  if(b<1024) return b+'B';
+  if(b<1048576) return (b/1024).toFixed(1)+'KB';
+  if(b<1073741824) return (b/1048576).toFixed(1)+'MB';
+  return (b/1073741824).toFixed(2)+'GB';
 }
 function fmtTime(t){
-  if(!t)return'--';
-  try{var d=new Date(t);return d.toLocaleTimeString('en-GB',{hour12:false})}catch(e){return String(t).slice(11,19)||t}
+  if(!t) return '--';
+  try{ var d=new Date(t); var s=d.toLocaleTimeString('en-GB',{hour12:false}); return s!=='Invalid Date'?s:String(t).slice(0,8); }
+  catch(e){ return String(t).slice(0,8) }
 }
-function sevClass(s){
-  if(!s)return'badge-info';
-  var l=s.toLowerCase();
-  if(l==='critical')return'badge-crit';
-  if(l==='high')return'badge-high';
-  if(l==='medium'||l==='med')return'badge-med';
-  if(l==='low')return'badge-low';
-  return'badge-info';
+function nowTime(){ var d=new Date(); return d.toLocaleTimeString('en-GB',{hour12:false}) }
+function sevBadge(s){
+  if(!s) return '<span class="badge b-info">--</span>';
+  var l=s.toLowerCase(),c='b-info';
+  if(l==='critical') c='b-crit'; else if(l==='high') c='b-high';
+  else if(l==='medium'||l==='med') c='b-med'; else if(l==='low') c='b-low';
+  return '<span class="badge '+c+'">'+esc(s)+'</span>';
 }
-function badge(txt,cls){return'<span class="badge '+cls+'">'+esc(txt)+'</span>'}
-function sevBadge(s){return badge(s||'--',sevClass(s))}
-function esc(s){if(s==null)return'';var d=document.createElement('div');d.textContent=String(s);return d.innerHTML}
-function statCard(val,lbl){return'<div class="stat"><div class="stat-val">'+esc(val)+'</div><div class="stat-lbl">'+esc(lbl)+'</div></div>'}
-function scoreColor(v){
+function scoreBar(v){
   v=Number(v)||0;
-  if(v>=80)return'var(--red)';if(v>=50)return'var(--yellow)';if(v>=20)return'var(--cyan)';return'var(--green)';
+  var c=v>=80?'var(--red)':v>=50?'var(--warn)':v>=20?'var(--cyan)':'var(--green)';
+  return '<div style="display:flex;align-items:center;gap:6px"><div style="width:60px;height:6px;background:var(--bg);border-radius:3px;border:1px solid var(--border)"><div style="width:'+Math.min(100,v)+'%;height:100%;background:'+c+';border-radius:3px"></div></div><span style="color:'+c+';font-weight:bold;font-size:11px">'+v+'</span></div>';
 }
-function progBar(label,pct,cls){
+function progBar(label, pct, cls){
   pct=Math.min(100,Math.max(0,Number(pct)||0));
-  return'<div class="prog-wrap"><div class="prog-lbl"><span>'+esc(label)+'</span><span>'+pct.toFixed(1)+'%</span></div><div class="prog-bar"><div class="prog-fill '+cls+'" style="width:'+pct+'%"></div></div></div>';
+  return '<div class="prog-wrap"><div class="prog-lbl"><span>'+esc(label)+'</span><span>'+pct.toFixed(1)+'%</span></div><div class="prog-bar"><div class="prog-fill '+cls+'" style="width:'+pct+'%"></div></div></div>';
 }
 
-/* --- Tab switching --- */
-var activeTab=0, autoRotate=true, rotateTimer=null;
-var tabEls=document.querySelectorAll('.tab');
-var contentEls=document.querySelectorAll('.tab-content');
-
-function switchTab(idx){
-  activeTab=idx;
-  tabEls.forEach(function(t,i){t.classList.toggle('active',i===idx)});
-  contentEls.forEach(function(c,i){c.classList.toggle('visible',i===idx)});
+/* ================================================================
+   TOAST NOTIFICATIONS
+   ================================================================ */
+function toast(msg, type){
+  type = type || 'info';
+  var t = document.createElement('div');
+  t.className = 'toast toast-'+type;
+  t.textContent = msg;
+  $('toast-box').appendChild(t);
+  setTimeout(function(){ if(t.parentNode) t.parentNode.removeChild(t) }, 3200);
 }
-tabEls.forEach(function(t){
-  t.addEventListener('click',function(){
-    autoRotate=false;clearInterval(rotateTimer);
-    switchTab(Number(t.dataset.tab));
+
+/* ================================================================
+   API HELPERS
+   ================================================================ */
+function apiPost(url, body, onOk){
+  toast('Working...', 'info');
+  fetch(url, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  }).then(function(r){
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  }).then(function(d){
+    toast(d.message || d.status || 'OK', 'ok');
+    if(onOk) onOk(d);
+    pollNow();
+  }).catch(function(e){
+    toast('Error: '+e.message, 'err');
   });
-});
-rotateTimer=setInterval(function(){if(autoRotate)switchTab((activeTab+1)%5)},20000);
+}
+window.apiPost = apiPost;
 
-document.addEventListener('keydown',function(e){
+/* ================================================================
+   NAVIGATION
+   ================================================================ */
+var navItems = document.querySelectorAll('.nav-item');
+var pages = document.querySelectorAll('.page');
+var pageNames = ['dashboard','honeypots','network','threats','supply','settings'];
+
+function switchPage(name){
+  S.page = name;
+  navItems.forEach(function(n){ n.classList.toggle('active', n.dataset.page===name) });
+  pages.forEach(function(p){ p.classList.toggle('active', p.id==='page-'+name) });
+  pollNow();
+}
+navItems.forEach(function(n){
+  n.addEventListener('click', function(){ switchPage(n.dataset.page) });
+});
+document.addEventListener('keydown', function(e){
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA') return;
   var k=e.key;
-  if(k>='1'&&k<='5'){autoRotate=false;clearInterval(rotateTimer);switchTab(Number(k)-1)}
+  if(k>='1'&&k<='6') switchPage(pageNames[Number(k)-1]);
 });
 
-/* --- Clock --- */
-function updateClock(){
-  var d=new Date();
-  document.getElementById('hdr-time').textContent=
-    d.toLocaleDateString('en-GB',{year:'numeric',month:'short',day:'2-digit'})+' '+
-    d.toLocaleTimeString('en-GB',{hour12:false});
-}
-updateClock();setInterval(updateClock,1000);
+/* ================================================================
+   RENDER: DASHBOARD
+   ================================================================ */
+function renderDashboard(d){
+  if(!d) return;
+  var totals = d.totals||{};
+  var honeypots = d.honeypots||[];
+  var alerts = d.alerts||[];
+  var banned = d.banned||[];
 
-/* --- Data rendering --- */
-function renderHoneypots(arr){
-  if(!arr)return;
-  var tb=document.getElementById('t-honeypots');
-  tb.innerHTML=arr.map(function(h){
-    return'<tr><td>'+esc(h.name)+'</td><td>'+esc(h.port)+'</td><td>'+esc(h.hits)+'</td><td>'+
-      badge(h.status||'ON','badge-on')+'</td></tr>';
-  }).join('');
-}
+  // threat level
+  var evts = totals.events||0;
+  var bans = totals.bans||0;
+  var tl='LOW',tc='c-green';
+  if(bans>10||alerts.length>20){tl='CRITICAL';tc='c-red'}
+  else if(bans>5||alerts.length>10){tl='HIGH';tc='c-red'}
+  else if(bans>0||alerts.length>3){tl='MEDIUM';tc='c-warn'}
 
-function renderAlerts(arr){
-  if(!arr)return;
-  var tb=document.getElementById('t-alerts');
-  tb.innerHTML=arr.slice(0,50).map(function(a){
-    return'<tr><td>'+fmtTime(a.time||a.timestamp)+'</td><td>'+sevBadge(a.severity)+'</td><td>'+
-      esc(a.type)+'</td><td>'+esc(a.ip||a.source_ip||'--')+'</td><td>'+esc(a.description||a.desc||a.message||'')+'</td></tr>';
-  }).join('');
-}
+  var activeHp = honeypots.filter(function(h){return h.status==='ON'}).length;
 
-function renderBanned(arr){
-  if(!arr)return;
-  var tb=document.getElementById('t-banned');
-  tb.innerHTML=arr.map(function(b){
-    return'<tr><td>'+esc(b.ip)+'</td><td>'+esc(b.reason)+'</td><td>'+sevBadge(b.severity)+'</td><td>'+
-      esc(b.firewall?'Y':'N')+'</td></tr>';
-  }).join('');
-}
+  $('dash-stats').innerHTML =
+    '<div class="stat-card"><div class="stat-val c-cyan">'+esc(evts)+'</div><div class="stat-lbl">Total Events</div></div>'+
+    '<div class="stat-card"><div class="stat-val '+(bans>0?'c-red':'c-green')+'">'+esc(bans)+'</div><div class="stat-lbl">Banned IPs</div></div>'+
+    '<div class="stat-card"><div class="stat-val c-green">'+activeHp+'/'+honeypots.length+'</div><div class="stat-lbl">Active Honeypots</div></div>'+
+    '<div class="stat-card"><div class="stat-val '+tc+'">'+tl+'</div><div class="stat-lbl">Threat Level</div></div>';
 
-function renderNetwork(obj){
-  if(!obj)return;
-  document.getElementById('s-network').innerHTML=
-    statCard(obj.established||0,'Established')+
-    statCard(obj.listeners||0,'Listeners')+
-    statCard(fmtBytes(obj.bytes_sent),'Bytes Sent')+
-    statCard(fmtBytes(obj.bytes_recv),'Bytes Recv')+
-    statCard(obj.errors||0,'Errors');
-}
+  // feed entries from alerts
+  var now = nowTime();
+  for(var i=0;i<alerts.length;i++){
+    var a=alerts[i];
+    var key=a.time+a.ip+a.type;
+    var exists=false;
+    for(var j=S.feedEntries.length-1;j>=Math.max(0,S.feedEntries.length-50);j--){
+      if(S.feedEntries[j].key===key){exists=true;break}
+    }
+    if(!exists){
+      var sev=(a.severity||'INFO').toUpperCase();
+      var logCls='log-info';
+      if(sev==='CRITICAL') logCls='log-crit'; else if(sev==='HIGH') logCls='log-high';
+      else if(sev==='MEDIUM') logCls='log-med'; else if(sev==='LOW') logCls='log-low';
+      S.feedEntries.push({
+        key:key,
+        html:'<span class="'+logCls+'">['+esc(a.time||now)+'] '+esc(sev).padEnd(8)+' '+esc(a.ip||'--').padEnd(16)+' -> '+esc(a.type||'--').padEnd(12)+' '+esc(a.description||'')+'</span>'
+      });
+    }
+  }
+  while(S.feedEntries.length>200) S.feedEntries.shift();
 
-function renderCountries(arr){
-  if(!arr)return;
-  document.getElementById('t-countries').innerHTML=arr.map(function(c){
-    return'<tr><td>'+esc(c.cc||c.code)+'</td><td>'+esc(c.country||c.name)+'</td><td>'+esc(c.hits||c.count)+'</td></tr>';
-  }).join('');
-}
+  var feedEl=$('attack-feed');
+  var wasAtBottom = feedEl.scrollHeight - feedEl.scrollTop - feedEl.clientHeight < 40;
+  feedEl.innerHTML = S.feedEntries.map(function(e){return e.html}).join('<br>');
+  if(wasAtBottom) feedEl.scrollTop = feedEl.scrollHeight;
 
-function renderFeeds(arr){
-  if(!arr)return;
-  document.getElementById('t-feeds').innerHTML=arr.map(function(f){
-    return'<tr><td>'+esc(f.feed||f.name)+'</td><td>'+esc(f.ips||f.count)+'</td><td>'+esc(f.last_update||f.updated||'--')+'</td></tr>';
-  }).join('');
-}
+  // network stats
+  var net = d.network||{};
+  $('dash-netstats').innerHTML =
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+    '<div><span style="color:var(--dim)">Established</span><div style="color:var(--cyan);font-size:18px;font-weight:bold">'+esc(net.established||0)+'</div></div>'+
+    '<div><span style="color:var(--dim)">Listeners</span><div style="color:var(--cyan);font-size:18px;font-weight:bold">'+esc(net.listeners||0)+'</div></div>'+
+    '<div><span style="color:var(--dim)">Bytes Sent</span><div style="color:var(--green);font-size:14px">'+fmtBytes(net.bytes_sent)+'</div></div>'+
+    '<div><span style="color:var(--dim)">Bytes Recv</span><div style="color:var(--green);font-size:14px">'+fmtBytes(net.bytes_recv)+'</div></div>'+
+    '</div>';
 
-function renderAttackers(arr){
-  if(!arr)return;
-  document.getElementById('t-attackers').innerHTML=arr.map(function(a){
-    return'<tr><td>'+esc(a.ip)+'</td><td>'+esc(a.hits||a.count)+'</td><td>'+esc(a.country||'--')+'</td><td>'+
-      (a.threat_intel||a.match?badge('MATCH','badge-high'):badge('--','badge-info'))+'</td></tr>';
-  }).join('');
-}
+  // system
+  var sys = d.system||{};
+  $('dash-system').innerHTML =
+    progBar('CPU', sys.cpu||0, 'pf-cpu')+
+    progBar('RAM ('+((sys.ram_used_mb||0)/1024).toFixed(1)+'/'+(((sys.ram_total_mb||0)/1024).toFixed(1))+'GB)', sys.ram||0, 'pf-ram')+
+    progBar('Disk C:', sys.disk||0, 'pf-disk');
 
-function renderSystem(containerId,sys){
-  if(!sys)return;
-  var el=document.getElementById(containerId);
-  el.innerHTML=
-    progBar('CPU',sys.cpu||0,'cpu')+
-    progBar('RAM',sys.ram||sys.memory||0,'ram')+
-    progBar('Disk',sys.disk||0,'disk');
+  // sidebar stats
+  $('sb-ev').textContent = evts;
+  $('sb-ban').textContent = bans;
 }
 
-function renderArp(obj){
-  if(!obj)return;
-  document.getElementById('s-arp').innerHTML=
-    statCard(obj.gateway_ip||'--','Gateway IP')+
-    statCard(obj.gateway_mac||'--','Gateway MAC')+
-    statCard(obj.entries||0,'Entries')+
-    statCard(obj.alerts||0,'Alerts');
+/* ================================================================
+   RENDER: HONEYPOTS
+   ================================================================ */
+function renderHoneypots(d){
+  if(!d) return;
+  var hps = d.honeypots||[];
+  var html='';
+  for(var i=0;i<hps.length;i++){
+    var h=hps[i];
+    var isOn = h.status==='ON';
+    html+='<tr>'+
+      '<td style="font-weight:bold;color:var(--cyan)">'+esc(h.name)+'</td>'+
+      '<td>'+esc(h.port)+'</td>'+
+      '<td><label class="toggle"><input type="checkbox" '+(isOn?'checked':'')+' onchange="toggleHP(\''+esc(h.name).toLowerCase()+'\',this.checked)"><span class="toggle-track"></span><span class="toggle-thumb"></span></label></td>'+
+      '<td>'+esc(h.hits||0)+'</td>'+
+      '<td style="color:var(--dim)">'+esc(h.last_connection||'--')+'</td>'+
+      '</tr>';
+  }
+  if(!hps.length) html='<tr><td colspan="5" style="color:var(--dim);text-align:center;padding:20px">No honeypots configured</td></tr>';
+  $('hp-table').innerHTML = html;
 }
 
-function renderFim(obj){
-  if(!obj)return;
-  document.getElementById('s-fim').innerHTML=
-    statCard(obj.monitored||0,'Monitored')+
-    statCard(obj.baseline||'--','Baseline')+
-    statCard(obj.changes||0,'Changes')+
-    statCard(obj.alerts||0,'Alerts');
+window.toggleHP = function(name, enabled){
+  apiPost('/api/honeypot/toggle', {name:name, enabled:enabled});
+};
+
+/* ================================================================
+   RENDER: NETWORK
+   ================================================================ */
+function renderNetwork(d){
+  if(!d) return;
+  var banned = d.banned||[];
+  var whitelist = d.whitelist||[];
+
+  // connections - store raw for filtering
+  if(d.connections){
+    S.connData = d.connections;
+  }
+  renderConnTable();
+
+  // banned
+  var bhtml='';
+  for(var i=0;i<banned.length;i++){
+    var b=banned[i];
+    bhtml+='<tr><td style="color:var(--red)">'+esc(b.ip)+'</td>'+
+      '<td>'+sevBadge(b.severity)+'</td>'+
+      '<td style="color:var(--dim);font-size:11px">'+esc(b.reason)+'</td>'+
+      '<td><button class="btn btn-green btn-sm" onclick="unbanIP(\''+esc(b.ip)+'\')">Unban</button></td></tr>';
+  }
+  if(!banned.length) bhtml='<tr><td colspan="4" style="color:var(--dim);text-align:center">No banned IPs</td></tr>';
+  $('ban-table').innerHTML = bhtml;
+
+  // whitelist
+  var whtml='';
+  for(var i=0;i<whitelist.length;i++){
+    var w=whitelist[i];
+    var cidr = typeof w==='string'?w:(w.cidr||w.ip||'');
+    whtml+='<tr><td>'+esc(cidr)+'</td>'+
+      '<td><button class="btn btn-danger btn-sm" onclick="removeWhitelist(\''+esc(cidr)+'\')">Remove</button></td></tr>';
+  }
+  if(!whitelist.length) whtml='<tr><td colspan="2" style="color:var(--dim);text-align:center">No whitelist entries</td></tr>';
+  $('wl-table').innerHTML = whtml;
 }
 
-function renderProcesses(arr){
-  if(!arr)return;
-  document.getElementById('t-procs').innerHTML=arr.slice(0,50).map(function(p){
-    return'<tr><td>'+fmtTime(p.time||p.timestamp)+'</td><td>'+esc(p.process||p.name)+'</td><td>'+
-      esc(p.parent||'--')+'</td><td>'+sevBadge(p.severity)+'</td></tr>';
-  }).join('');
+function renderConnTable(){
+  var filter = ($('conn-filter').value||'').toLowerCase();
+  var conns = S.connData||[];
+  var filtered = conns;
+  if(filter){
+    filtered = conns.filter(function(c){
+      return (String(c.local_port||c.port||'')+' '+String(c.remote_ip||c.raddr||'')+' '+
+        String(c.remote_port||'')+' '+String(c.status||'')+' '+String(c.process||c.pid||'')).toLowerCase().indexOf(filter)>=0;
+    });
+  }
+  $('conn-count').textContent = filtered.length;
+  var html='';
+  for(var i=0;i<Math.min(filtered.length,100);i++){
+    var c=filtered[i];
+    var rip = c.remote_ip||c.raddr||'--';
+    html+='<tr>'+
+      '<td>'+esc(c.local_port||c.port||'--')+'</td>'+
+      '<td>'+esc(rip)+'</td>'+
+      '<td>'+esc(c.remote_port||'--')+'</td>'+
+      '<td><span class="badge '+(c.status==='ESTABLISHED'?'b-on':'b-info')+'">'+esc(c.status||'--')+'</span></td>'+
+      '<td style="color:var(--dim);font-size:11px">'+esc(c.process||c.pid||'--')+'</td>'+
+      '<td>'+(rip!=='--'&&rip!=='0.0.0.0'&&rip!=='127.0.0.1'?'<button class="btn btn-danger btn-sm" onclick="banIP(\''+esc(rip)+'\')">Ban</button>':'')+'</td>'+
+      '</tr>';
+  }
+  if(!filtered.length) html='<tr><td colspan="6" style="color:var(--dim);text-align:center;padding:20px">No connections</td></tr>';
+  $('conn-table').innerHTML = html;
+}
+window.filterConns = renderConnTable;
+
+window.banIP = function(ip){
+  apiPost('/api/ban', {ip:ip, reason:'manual'});
+};
+window.unbanIP = function(ip){
+  apiPost('/api/unban', {ip:ip});
+};
+window.manualBan = function(){
+  var ip = $('ban-ip-input').value.trim();
+  if(!ip){ toast('Enter an IP address','err'); return }
+  apiPost('/api/ban', {ip:ip, reason:'manual'});
+  $('ban-ip-input').value='';
+};
+window.addWhitelist = function(){
+  var cidr = ($('wl-input')&&$('wl-input').value.trim()) || ($('cfg-wl-add')&&$('cfg-wl-add').value.trim());
+  if(!cidr){ toast('Enter a CIDR','err'); return }
+  apiPost('/api/whitelist/add', {ip:cidr});
+  if($('wl-input')) $('wl-input').value='';
+  if($('cfg-wl-add')) $('cfg-wl-add').value='';
+};
+window.removeWhitelist = function(cidr){
+  apiPost('/api/whitelist/remove', {ip:cidr});
+};
+
+/* ================================================================
+   RENDER: THREATS
+   ================================================================ */
+function renderThreats(d){
+  if(!d) return;
+  var scores = d.scores||[];
+  var feeds = d.feeds||[];
+  var countries = d.countries||[];
+  var alerts = d.alerts||[];
+
+  // scores
+  var shtml='';
+  for(var i=0;i<scores.length;i++){
+    var s=scores[i];
+    shtml+='<tr>'+
+      '<td style="color:var(--red)">'+esc(s.ip)+'</td>'+
+      '<td>'+scoreBar(s.score)+'</td>'+
+      '<td>'+sevBadge(s.severity)+'</td>'+
+      '<td>'+esc(s.country||'--')+'</td>'+
+      '<td>'+esc(s.honeypots_hit||0)+'</td>'+
+      '<td><button class="btn btn-danger btn-sm" onclick="banIP(\''+esc(s.ip)+'\')">Ban</button></td>'+
+      '</tr>';
+  }
+  if(!scores.length) shtml='<tr><td colspan="6" style="color:var(--dim);text-align:center">No threat scores</td></tr>';
+  $('score-table').innerHTML = shtml;
+
+  // IDS log
+  for(var i=0;i<alerts.length;i++){
+    var a=alerts[i];
+    var key2='ids-'+a.time+a.ip+a.type;
+    var exists2=false;
+    for(var j=S.idsEntries.length-1;j>=Math.max(0,S.idsEntries.length-50);j--){
+      if(S.idsEntries[j].key===key2){exists2=true;break}
+    }
+    if(!exists2){
+      var sev2=(a.severity||'INFO').toUpperCase();
+      var lc2='log-info';
+      if(sev2==='CRITICAL') lc2='log-crit'; else if(sev2==='HIGH') lc2='log-high';
+      else if(sev2==='MEDIUM') lc2='log-med'; else if(sev2==='LOW') lc2='log-low';
+      S.idsEntries.push({key:key2,html:'<span class="'+lc2+'">['+esc(a.time)+'] '+esc(sev2)+' '+esc(a.ip||'')+' '+esc(a.description||a.type||'')+'</span>'});
+    }
+  }
+  while(S.idsEntries.length>200) S.idsEntries.shift();
+  var idsEl=$('ids-log');
+  var wasBot2 = idsEl.scrollHeight - idsEl.scrollTop - idsEl.clientHeight < 40;
+  idsEl.innerHTML = S.idsEntries.map(function(e){return e.html}).join('<br>');
+  if(wasBot2) idsEl.scrollTop = idsEl.scrollHeight;
+
+  // feeds
+  var fhtml='';
+  for(var i=0;i<feeds.length;i++){
+    var f=feeds[i];
+    fhtml+='<tr><td style="color:var(--cyan)">'+esc(f.name||f.feed)+'</td>'+
+      '<td>'+esc(f.count||f.ips||0)+'</td>'+
+      '<td style="color:var(--dim)">'+esc(f.updated||f.last_update||'--')+'</td></tr>';
+  }
+  if(!feeds.length) fhtml='<tr><td colspan="3" style="color:var(--dim);text-align:center">No feeds loaded</td></tr>';
+  $('feeds-table').innerHTML = fhtml;
+
+  // countries
+  var chtml='';
+  for(var i=0;i<countries.length;i++){
+    var c=countries[i];
+    chtml+='<tr><td style="font-weight:bold">'+esc(c.cc||c.code)+'</td>'+
+      '<td>'+esc(c.name||c.country)+'</td>'+
+      '<td style="color:var(--red)">'+esc(c.hits||c.count)+'</td></tr>';
+  }
+  if(!countries.length) chtml='<tr><td colspan="3" style="color:var(--dim);text-align:center">No geo data</td></tr>';
+  $('countries-table').innerHTML = chtml;
 }
 
-function renderScores(arr){
-  if(!arr)return;
-  document.getElementById('t-scores').innerHTML=arr.map(function(s){
-    var sc=Number(s.score)||0;
-    return'<tr><td>'+esc(s.ip)+'</td><td><span style="color:'+scoreColor(sc)+';font-weight:bold">'+sc+'</span></td><td>'+
-      sevBadge(s.severity)+'</td><td>'+esc(s.country||'--')+'</td></tr>';
-  }).join('');
+/* ================================================================
+   RENDER: SUPPLY CHAIN
+   ================================================================ */
+function renderSupply(d){
+  if(!d) return;
+  var sc = d.supply_chain||{};
+  var deps = d.dependencies||{};
+  var creds = d.credentials||{};
+  var cont = d.containers||{};
+
+  var totalPkg = deps.total_packages||0;
+  var directDeps = deps.direct||0;
+  var transitive = deps.transitive||0;
+  var issues = (sc.compromised_found||0) + (sc.pth_files||0) + (sc.typosquats||0) + (deps.integrity_fails||0);
+
+  $('supply-stats').innerHTML =
+    '<div class="stat-card"><div class="stat-val c-cyan">'+totalPkg+'</div><div class="stat-lbl">Packages Tracked</div></div>'+
+    '<div class="stat-card"><div class="stat-val c-green">'+directDeps+'</div><div class="stat-lbl">Direct Deps</div></div>'+
+    '<div class="stat-card"><div class="stat-val c-warn">'+transitive+'</div><div class="stat-lbl">Transitive Deps</div></div>'+
+    '<div class="stat-card"><div class="stat-val '+(issues>0?'c-red':'c-green')+'">'+issues+'</div><div class="stat-lbl">Issues Found</div></div>';
+
+  // findings
+  var findings = [];
+  if(sc.compromised_found>0) findings.push({sev:'CRITICAL',pkg:'Supply Chain',desc:sc.compromised_found+' compromised package(s) detected'});
+  if(sc.pth_files>0) findings.push({sev:'HIGH',pkg:'.pth Files',desc:sc.pth_files+' malicious .pth file(s) found'});
+  if(sc.typosquats>0) findings.push({sev:'HIGH',pkg:'Typosquatting',desc:sc.typosquats+' typosquatting alert(s)'});
+  if(deps.integrity_fails>0) findings.push({sev:'MEDIUM',pkg:'Integrity',desc:deps.integrity_fails+' integrity failure(s)'});
+  if(deps.abandoned>0) findings.push({sev:'LOW',pkg:'Abandoned',desc:deps.abandoned+' abandoned package(s)'});
+
+  var fhtml='';
+  if(findings.length){
+    for(var i=0;i<findings.length;i++){
+      var f=findings[i];
+      fhtml+='<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">'+
+        sevBadge(f.sev)+
+        '<span style="color:var(--cyan);font-weight:bold;min-width:100px">'+esc(f.pkg)+'</span>'+
+        '<span>'+esc(f.desc)+'</span></div>';
+    }
+  } else {
+    fhtml='<div style="color:var(--green);text-align:center;padding:30px">System clean - no issues detected</div>';
+  }
+  $('supply-findings').innerHTML = fhtml;
+
+  // module statuses
+  var mhtml='';
+  var modules=[
+    {name:'Credential Monitor', active:creds.monitored_files>0||creds.baseline_ok},
+    {name:'Container Security', active:cont.docker_available},
+    {name:'Supply Chain Guardian', active:sc.status==='active'},
+    {name:'Pip Monitor', active:sc.pip_monitoring}
+  ];
+  for(var i=0;i<modules.length;i++){
+    var m=modules[i];
+    mhtml+='<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">'+
+      '<span>'+esc(m.name)+'</span>'+
+      '<span class="badge '+(m.active?'b-on':'b-off')+'">'+(m.active?'ACTIVE':'IDLE')+'</span></div>';
+  }
+  $('supply-modules').innerHTML = mhtml;
 }
 
-function renderCanary(obj){
-  if(!obj)return;
-  document.getElementById('s-canary').innerHTML=
-    statCard(obj.canary_files||0,'Canary Files')+
-    statCard(obj.canary_alerts||0,'Canary Alerts')+
-    statCard(obj.usb_devices||0,'USB Devices')+
-    statCard(obj.usb_alerts||0,'USB Alerts');
+/* ================================================================
+   RENDER: SETTINGS
+   ================================================================ */
+function renderSettings(d){
+  if(!d) return;
+  var hps = d.honeypots||[];
+  var whitelist = d.whitelist||[];
+
+  // port config
+  var phtml='';
+  for(var i=0;i<hps.length;i++){
+    var h=hps[i];
+    phtml+='<div class="form-row"><span class="form-label">'+esc(h.name)+' port</span>'+
+      '<input class="input cfg-port" data-hp="'+esc(h.name)+'" type="number" value="'+esc(h.port)+'" style="width:100px"></div>';
+  }
+  if(!hps.length) phtml='<div style="color:var(--dim)">No honeypots configured</div>';
+  $('cfg-ports').innerHTML = phtml;
+
+  // whitelist
+  var whtml='';
+  for(var i=0;i<whitelist.length;i++){
+    var w=whitelist[i];
+    var cidr=typeof w==='string'?w:(w.cidr||w.ip||'');
+    whtml+='<div style="display:flex;align-items:center;gap:8px;margin:4px 0">'+
+      '<span style="color:var(--text)">'+esc(cidr)+'</span>'+
+      '<button class="btn btn-danger btn-sm" onclick="removeWhitelist(\''+esc(cidr)+'\')">Remove</button></div>';
+  }
+  $('cfg-whitelist').innerHTML = whtml;
 }
 
-function renderEvents(arr){
-  if(!arr)return;
-  document.getElementById('t-events').innerHTML=arr.slice(0,50).map(function(e){
-    return'<tr><td>'+fmtTime(e.time||e.timestamp)+'</td><td>'+esc(e.event||e.message||e.description)+'</td><td>'+
-      sevBadge(e.severity)+'</td></tr>';
-  }).join('');
-}
+window.saveConfig = function(){
+  var config = {
+    honeypot_ports: {},
+    alert_sound: $('cfg-sound').checked,
+    alert_toast: $('cfg-toast').checked,
+    auto_ban_enabled: $('cfg-autoban').checked,
+    auto_ban_threshold: parseInt($('cfg-threshold').value)||5
+  };
+  var portInputs = document.querySelectorAll('.cfg-port');
+  portInputs.forEach(function(el){
+    config.honeypot_ports[el.dataset.hp] = parseInt(el.value)||0;
+  });
+  apiPost('/api/config/save', config);
+};
 
-function renderBw(obj){
-  if(!obj)return;
-  document.getElementById('s-bw').innerHTML=
-    statCard(fmtBytes(obj.bandwidth_in||0),'BW In')+
-    statCard(fmtBytes(obj.bandwidth_out||0),'BW Out')+
-    statCard(obj.registry_changes||0,'Reg Changes')+
-    statCard(obj.registry_alerts||0,'Reg Alerts');
-}
+window.exportConfig = function(){
+  var config = {
+    honeypot_ports: {},
+    alert_sound: $('cfg-sound').checked,
+    alert_toast: $('cfg-toast').checked,
+    auto_ban_enabled: $('cfg-autoban').checked,
+    auto_ban_threshold: parseInt($('cfg-threshold').value)||5
+  };
+  var portInputs = document.querySelectorAll('.cfg-port');
+  portInputs.forEach(function(el){
+    config.honeypot_ports[el.dataset.hp] = parseInt(el.value)||0;
+  });
+  var blob = new Blob([JSON.stringify(config,null,2)], {type:'application/json'});
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'blackwall-config.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('Config exported','ok');
+};
 
-function renderSupply(obj){
-  if(!obj)return;
-  document.getElementById('s-supply').innerHTML=
-    statCard(obj.compromised||0,'Compromised Pkgs')+
-    statCard(obj.pth_files||0,'.pth Files')+
-    statCard(obj.typosquats||0,'Typosquats')+
-    statCard(obj.pip_monitoring||'ON','Pip Monitor');
-}
+window.importConfig = function(e){
+  var file = e.target.files[0];
+  if(!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev){
+    try{
+      var config = JSON.parse(ev.target.result);
+      apiPost('/api/config/save', config, function(){
+        toast('Config imported and saved','ok');
+        pollNow();
+      });
+    }catch(err){
+      toast('Invalid JSON file','err');
+    }
+  };
+  reader.readAsText(file);
+  e.target.value='';
+};
 
-function renderCreds(obj){
-  if(!obj)return;
-  document.getElementById('s-creds').innerHTML=
-    statCard(obj.monitored||0,'Monitored Files')+
-    statCard(obj.baseline||'--','Baseline')+
-    statCard(obj.access_alerts||0,'Access Alerts')+
-    statCard(obj.exfiltration||0,'Exfiltration');
-}
+/* ================================================================
+   GLOBAL ACTIONS
+   ================================================================ */
+window.clearFeed = function(){
+  S.feedEntries = [];
+  $('attack-feed').innerHTML='<span style="color:var(--dim)">Feed cleared</span>';
+  toast('Feed cleared','ok');
+};
+window.clearIDS = function(){
+  S.idsEntries = [];
+  $('ids-log').innerHTML='<span style="color:var(--dim)">Log cleared</span>';
+  toast('IDS log cleared','ok');
+};
+window.pollNow = function(){
+  poll();
+};
 
-function renderDeps(obj){
-  if(!obj)return;
-  document.getElementById('s-deps').innerHTML=
-    statCard(obj.total||0,'Total Pkgs')+
-    statCard(obj.direct||0,'Direct Deps')+
-    statCard(obj.transitive||0,'Transitive')+
-    statCard(obj.abandoned||0,'Abandoned')+
-    statCard(obj.integrity_fails||0,'Integrity Fails');
-}
-
-function renderContainer(obj){
-  if(!obj)return;
-  document.getElementById('s-container').innerHTML=
-    statCard(obj.docker_status||'--','Docker')+
-    statCard(obj.containers||0,'Containers')+
-    statCard(obj.privileged||0,'Privileged')+
-    statCard(obj.crypto_miners||0,'Crypto Miners');
-}
-
-function renderFooter(d){
-  document.getElementById('f-ev').textContent=d.event_count||d.events_total||0;
-  document.getElementById('f-ban').textContent=(d.banned&&d.banned.length)||d.ban_count||0;
-  document.getElementById('f-alert').textContent=(d.alerts&&d.alerts.length)||d.alert_count||0;
-}
-
-/* --- Main update --- */
-function update(d){
-  if(!d)return;
-  renderHoneypots(d.honeypots);
-  renderAlerts(d.alerts);
-  renderBanned(d.banned);
-  renderNetwork(d.network);
-  renderCountries(d.countries||d.top_countries);
-  renderFeeds(d.feeds||d.threat_feeds);
-  renderAttackers(d.attackers||d.top_attackers);
-  renderSystem('s-system1',d.system);
-  renderArp(d.arp||d.arp_guard);
-  renderFim(d.fim||d.file_integrity);
-  renderProcesses(d.processes);
-  renderSystem('s-system2',d.system);
-  renderScores(d.threat_scores||d.scores);
-  renderCanary(d.canary||d.canary_usb);
-  renderEvents(d.events||d.event_log);
-  renderBw(d.bandwidth||d.bw_registry);
-  renderSupply(d.supply_chain||d.supply);
-  renderCreds(d.credentials||d.credential_vault);
-  renderDeps(d.dependencies||d.dependency_audit);
-  renderContainer(d.container||d.container_security);
-  renderFooter(d);
-}
+/* ================================================================
+   MAIN POLL LOOP
+   ================================================================ */
+var failCount = 0;
 
 function poll(){
-  fetch('/api/status').then(function(r){return r.json()}).then(update).catch(function(){});
+  fetch('/api/status').then(function(r){
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  }).then(function(d){
+    S.data = d;
+    S.connected = true;
+    failCount = 0;
+    $('connecting').classList.remove('show');
+
+    // always render dashboard stats for sidebar
+    renderDashboard(d);
+
+    // render active page
+    switch(S.page){
+      case 'honeypots': renderHoneypots(d); break;
+      case 'network': renderNetwork(d); break;
+      case 'threats': renderThreats(d); break;
+      case 'supply': renderSupply(d); break;
+      case 'settings': renderSettings(d); break;
+    }
+  }).catch(function(e){
+    failCount++;
+    if(failCount >= 3){
+      $('connecting').classList.add('show');
+    }
+  });
 }
+
+// initial poll + interval
 poll();
-setInterval(poll,2000);
+S.pollTimer = setInterval(poll, 3000);
 
 })();
 </script>

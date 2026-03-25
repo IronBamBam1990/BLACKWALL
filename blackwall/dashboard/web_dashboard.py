@@ -3,7 +3,10 @@ BLACKWALL Web Dashboard - Flask-based security monitoring backend.
 Serves real-time JSON status from all BLACKWALL modules and a web UI.
 """
 
+import asyncio
+import json
 import logging
+import os
 import threading
 import webbrowser
 from datetime import datetime, timezone
@@ -11,7 +14,7 @@ from datetime import datetime, timezone
 import psutil
 
 try:
-    from flask import Flask, jsonify, render_template
+    from flask import Flask, jsonify, render_template, request
 except ImportError:
     raise ImportError("Flask is required: pip install flask")
 
@@ -88,6 +91,141 @@ class WebDashboard:
         @app.route("/api/status")
         def api_status():
             return jsonify(self._collect_status())
+
+        # --------------------------------------------------------------
+        #  Action endpoints (POST, JSON)
+        # --------------------------------------------------------------
+
+        @app.route("/api/honeypot/toggle", methods=["POST"])
+        def api_honeypot_toggle():
+            try:
+                if not self.honeypot_mgr:
+                    return jsonify({"ok": False, "error": "Honeypot manager not available"}), 503
+                data = request.get_json(force=True)
+                name = data.get("name")
+                enabled = data.get("enabled")
+                if name is None or enabled is None:
+                    return jsonify({"ok": False, "error": "Missing 'name' or 'enabled'"}), 400
+                target = None
+                for hp in self.honeypot_mgr.honeypots:
+                    if hp.name.lower() == name.lower():
+                        target = hp
+                        break
+                if target is None:
+                    return jsonify({"ok": False, "error": f"Honeypot '{name}' not found"}), 404
+                if enabled:
+                    target.start()
+                else:
+                    target.stop()
+                return jsonify({"ok": True, "name": name, "enabled": enabled})
+            except Exception as e:
+                return jsonify({"ok": False, "error": str(e)}), 500
+
+        @app.route("/api/honeypot/start_all", methods=["POST"])
+        def api_honeypot_start_all():
+            try:
+                if not self.honeypot_mgr:
+                    return jsonify({"ok": False, "error": "Honeypot manager not available"}), 503
+                threading.Thread(target=self.honeypot_mgr.start_all, daemon=True).start()
+                return jsonify({"ok": True, "message": "Starting all honeypots"})
+            except Exception as e:
+                return jsonify({"ok": False, "error": str(e)}), 500
+
+        @app.route("/api/honeypot/stop_all", methods=["POST"])
+        def api_honeypot_stop_all():
+            try:
+                if not self.honeypot_mgr:
+                    return jsonify({"ok": False, "error": "Honeypot manager not available"}), 503
+                threading.Thread(target=self.honeypot_mgr.stop_all, daemon=True).start()
+                return jsonify({"ok": True, "message": "Stopping all honeypots"})
+            except Exception as e:
+                return jsonify({"ok": False, "error": str(e)}), 500
+
+        @app.route("/api/ban", methods=["POST"])
+        def api_ban():
+            try:
+                if not self.auto_ban:
+                    return jsonify({"ok": False, "error": "Auto-ban module not available"}), 503
+                data = request.get_json(force=True)
+                ip = data.get("ip")
+                reason = data.get("reason", "manual ban")
+                if not ip:
+                    return jsonify({"ok": False, "error": "Missing 'ip'"}), 400
+                self.auto_ban.ban_ip(ip, reason=reason, severity="HIGH")
+                return jsonify({"ok": True, "ip": ip})
+            except Exception as e:
+                return jsonify({"ok": False, "error": str(e)}), 500
+
+        @app.route("/api/unban", methods=["POST"])
+        def api_unban():
+            try:
+                if not self.auto_ban:
+                    return jsonify({"ok": False, "error": "Auto-ban module not available"}), 503
+                data = request.get_json(force=True)
+                ip = data.get("ip")
+                if not ip:
+                    return jsonify({"ok": False, "error": "Missing 'ip'"}), 400
+                threading.Thread(target=self.auto_ban.unban_ip, args=(ip,), daemon=True).start()
+                return jsonify({"ok": True, "ip": ip})
+            except Exception as e:
+                return jsonify({"ok": False, "error": str(e)}), 500
+
+        @app.route("/api/whitelist/add", methods=["POST"])
+        def api_whitelist_add():
+            try:
+                if not self.auto_ban:
+                    return jsonify({"ok": False, "error": "Auto-ban module not available"}), 503
+                data = request.get_json(force=True)
+                ip = data.get("ip")
+                if not ip:
+                    return jsonify({"ok": False, "error": "Missing 'ip'"}), 400
+                self.auto_ban.whitelist.append(ip)
+                return jsonify({"ok": True})
+            except Exception as e:
+                return jsonify({"ok": False, "error": str(e)}), 500
+
+        @app.route("/api/whitelist/remove", methods=["POST"])
+        def api_whitelist_remove():
+            try:
+                if not self.auto_ban:
+                    return jsonify({"ok": False, "error": "Auto-ban module not available"}), 503
+                data = request.get_json(force=True)
+                ip = data.get("ip")
+                if not ip:
+                    return jsonify({"ok": False, "error": "Missing 'ip'"}), 400
+                try:
+                    self.auto_ban.whitelist.remove(ip)
+                except ValueError:
+                    return jsonify({"ok": False, "error": f"'{ip}' not in whitelist"}), 404
+                return jsonify({"ok": True})
+            except Exception as e:
+                return jsonify({"ok": False, "error": str(e)}), 500
+
+        @app.route("/api/scan/supply_chain", methods=["POST"])
+        def api_scan_supply_chain():
+            try:
+                if not self.dependency_auditor:
+                    return jsonify({"ok": False, "error": "Dependency auditor not available"}), 503
+
+                def _run_audit():
+                    asyncio.run(self.dependency_auditor.run_full_audit())
+
+                threading.Thread(target=_run_audit, daemon=True).start()
+                return jsonify({"ok": True, "message": "Scan started"})
+            except Exception as e:
+                return jsonify({"ok": False, "error": str(e)}), 500
+
+        @app.route("/api/config/save", methods=["POST"])
+        def api_config_save():
+            try:
+                data = request.get_json(force=True)
+                config_path = os.path.join("config", "config.json")
+                os.makedirs(os.path.dirname(config_path), exist_ok=True)
+                with open(config_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+                return jsonify({"ok": True})
+            except Exception as e:
+                return jsonify({"ok": False, "error": str(e)}), 500
 
         return app
 
