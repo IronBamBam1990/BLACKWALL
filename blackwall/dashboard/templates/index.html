@@ -849,10 +849,10 @@ function renderSupply(d){
   // module statuses
   var mhtml='';
   var modules=[
-    {name:'Credential Monitor', active:creds.monitored_files>0||creds.baseline_ok},
-    {name:'Container Security', active:cont.docker_available},
-    {name:'Supply Chain Guardian', active:sc.status==='active'},
-    {name:'Pip Monitor', active:sc.pip_monitoring}
+    {name:'Credential Monitor', active:creds.running||creds.baseline_ok},
+    {name:'Container Security', active:cont.running||cont.docker_available},
+    {name:'Supply Chain Guardian', active:sc.running||sc.status==='active'},
+    {name:'Pip Monitor', active:sc.running||sc.pip_monitoring}
   ];
   for(var i=0;i<modules.length;i++){
     var m=modules[i];

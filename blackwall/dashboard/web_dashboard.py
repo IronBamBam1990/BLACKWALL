@@ -757,14 +757,16 @@ class WebDashboard:
             if not self.supply_chain:
                 return {"status": "offline", "compromised_found": 0,
                         "pth_files": 0, "typosquats": 0, "pip_monitoring": False}
+            running = getattr(self.supply_chain, "_running", False)
             s = (self.supply_chain.get_stats()
                  if hasattr(self.supply_chain, "get_stats") else {})
             return {
-                "status": "active",
+                "status": "active" if running else "starting",
+                "running": running,
                 "compromised_found": s.get("compromised_packages", 0),
                 "pth_files": s.get("pth_files_detected", 0),
                 "typosquats": s.get("typosquatting_alerts", 0),
-                "pip_monitoring": bool(s.get("pip_monitoring", False)),
+                "pip_monitoring": running,
             }
         except Exception:
             return {"status": "error", "compromised_found": 0,
@@ -777,12 +779,14 @@ class WebDashboard:
             if not self.credential_monitor:
                 return {"monitored_files": 0, "baseline_ok": False,
                         "access_alerts": 0, "exfiltration_attempts": 0}
+            running = getattr(self.credential_monitor, "_running", False)
             s = (self.credential_monitor.get_stats()
                  if hasattr(self.credential_monitor, "get_stats") else {})
             baseline = s.get("baseline_status", "Unknown")
             return {
-                "monitored_files": s.get("monitored_files", 0),
-                "baseline_ok": baseline in ("OK", "Valid", True),
+                "running": running,
+                "monitored_files": s.get("monitored_files", s.get("credential_paths", 0)),
+                "baseline_ok": running or baseline in ("OK", "Valid", True),
                 "access_alerts": s.get("recent_access_alerts", 0),
                 "exfiltration_attempts": s.get("exfiltration_attempts", 0),
             }
@@ -819,9 +823,11 @@ class WebDashboard:
                         "privileged": 0, "crypto_miners": 0}
             s = (self.container_monitor.get_stats()
                  if hasattr(self.container_monitor, "get_stats") else {})
+            running = getattr(self.container_monitor, "_running", False)
             docker = s.get("docker_status", "Unknown")
             return {
-                "docker_available": docker in ("Running", "Active", "OK"),
+                "running": running,
+                "docker_available": running or docker in ("Running", "Active", "OK"),
                 "running": s.get("running_containers", 0),
                 "privileged": s.get("privileged_containers", 0),
                 "crypto_miners": s.get("crypto_miners", 0),
