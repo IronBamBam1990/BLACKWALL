@@ -46,6 +46,7 @@ class WebDashboard:
         credential_monitor=None,
         dependency_auditor=None,
         container_monitor=None,
+        ram_checker=None,
     ):
         self.honeypot_mgr = honeypot_manager
         self.net_monitor = network_monitor
@@ -68,6 +69,7 @@ class WebDashboard:
         self.credential_monitor = credential_monitor
         self.dependency_auditor = dependency_auditor
         self.container_monitor = container_monitor
+        self.ram_checker = ram_checker
 
         self._app = None
         self._thread = None
@@ -288,6 +290,7 @@ class WebDashboard:
             "credentials": self._get_credentials(),
             "dependencies": self._get_dependencies(),
             "containers": self._get_containers(),
+            "ram_checker": self._get_ram_checker(),
             "totals": self._get_totals(),
             "config": self._get_config(),
         }
@@ -823,6 +826,51 @@ class WebDashboard:
         except Exception:
             return {"docker_available": False, "running": 0,
                     "privileged": 0, "crypto_miners": 0}
+
+    # -- ram checker ---------------------------------------------------
+
+    def _get_ram_checker(self) -> dict:
+        try:
+            if not self.ram_checker:
+                return {"processes_scanned": 0, "suspicious_found": 0,
+                        "credential_exposures": 0, "alerts": 0,
+                        "last_scan": "--", "recent_alerts": []}
+            s = (self.ram_checker.get_stats()
+                 if hasattr(self.ram_checker, "get_stats") else {})
+            last_scan = s.get("last_scan", "")
+            if last_scan:
+                try:
+                    last_scan = datetime.fromisoformat(last_scan).strftime("%H:%M:%S")
+                except Exception:
+                    last_scan = str(last_scan)[:8] if last_scan else "--"
+            else:
+                last_scan = "--"
+            recent = []
+            for a in s.get("recent_alerts", [])[-20:]:
+                ts = a.get("timestamp", a.get("time", ""))
+                try:
+                    ts = datetime.fromisoformat(ts).strftime("%H:%M:%S")
+                except Exception:
+                    ts = str(ts)[:8]
+                recent.append({
+                    "time": ts,
+                    "type": a.get("type", ""),
+                    "process": a.get("process", ""),
+                    "severity": a.get("severity", "LOW"),
+                    "description": a.get("description", ""),
+                })
+            return {
+                "processes_scanned": s.get("processes_scanned", 0),
+                "suspicious_found": s.get("suspicious_found", 0),
+                "credential_exposures": s.get("credential_exposures", 0),
+                "alerts": s.get("alerts", 0),
+                "last_scan": last_scan,
+                "recent_alerts": recent,
+            }
+        except Exception:
+            return {"processes_scanned": 0, "suspicious_found": 0,
+                    "credential_exposures": 0, "alerts": 0,
+                    "last_scan": "--", "recent_alerts": []}
 
     # -- config --------------------------------------------------------
 
