@@ -980,7 +980,7 @@ class BlackwallGUI:
             self._refresh_current_page()
         except Exception:
             pass
-        self.root.after(2000, self._update_loop)
+        self.root.after(3000, self._update_loop)
 
     def _refresh_current_page(self):
         """Refresh data for the currently visible page only."""
@@ -1230,18 +1230,7 @@ class BlackwallGUI:
         if not self._net_connections_frame:
             return
 
-        # Clear table
-        for w in self._net_connections_frame.winfo_children():
-            w.destroy()
-
-        # Headers
-        headers = ["Local Port", "Remote IP", "Remote Port", "Status", "Process", "Action"]
-        for col, h in enumerate(headers):
-            ctk.CTkLabel(
-                self._net_connections_frame, text=h, font=LABEL_FONT,
-                text_color=C_CYAN_DIM, anchor="w",
-            ).grid(row=0, column=col, sticky="w", padx=8, pady=(4, 8))
-
+        # Use textbox approach: format connections as text (no widget churn)
         connections = []
         if nm:
             try:
@@ -1259,53 +1248,47 @@ class BlackwallGUI:
                 or filter_text in c.get("process", "").lower()
             ]
 
-        for row_idx, conn in enumerate(connections[:100], start=1):
+        # Build text content - reuse existing textbox if possible
+        if not hasattr(self, "_net_textbox"):
+            # First time: replace scrollable frame with textbox
+            self._net_connections_frame.grid_forget()
+            self._net_textbox = ctk.CTkTextbox(
+                self._net_connections_frame.master,
+                font=("Consolas", 12),
+                fg_color=C_BG_DARK, text_color=C_TEXT,
+                state="disabled", wrap="none",
+            )
+            self._net_textbox.grid(row=1, column=0, sticky="nsew", padx=16, pady=(0, 8))
+            self._net_textbox.tag_config("header", foreground=C_CYAN)
+            self._net_textbox.tag_config("established", foreground=C_GREEN)
+            self._net_textbox.tag_config("listen", foreground=C_YELLOW)
+            self._net_textbox.tag_config("other", foreground=C_TEXT_DIM)
+
+        self._net_textbox.configure(state="normal")
+        self._net_textbox.delete("1.0", "end")
+
+        # Header
+        header = f"{'LOCAL PORT':<12} {'REMOTE IP':<22} {'REMOTE PORT':<14} {'STATUS':<16} {'PROCESS':<20}\n"
+        header += "-" * 84 + "\n"
+        self._net_textbox.insert("end", header, "header")
+
+        for conn in connections[:80]:
             local = conn.get("local_addr", "")
             remote = conn.get("remote_addr", "")
             status = conn.get("status", "")
             proc = conn.get("process", "")
 
-            local_port = local.rsplit(":", 1)[-1] if ":" in local else local
-            remote_ip = remote.rsplit(":", 1)[0] if ":" in remote else remote
-            remote_port = remote.rsplit(":", 1)[-1] if ":" in remote else ""
+            lport = local.rsplit(":", 1)[-1] if ":" in local else local
+            rip = remote.rsplit(":", 1)[0] if ":" in remote else remote
+            rport = remote.rsplit(":", 1)[-1] if ":" in remote else ""
 
-            status_color = C_GREEN if status == "ESTABLISHED" else C_YELLOW
+            tag = "established" if status == "ESTABLISHED" else "listen" if status == "LISTEN" else "other"
+            line = f"{lport:<12} {rip:<22} {rport:<14} {status:<16} {proc:<20}\n"
+            self._net_textbox.insert("end", line, tag)
 
-            ctk.CTkLabel(
-                self._net_connections_frame, text=local_port,
-                font=MONO_FONT_SMALL, text_color=C_TEXT,
-            ).grid(row=row_idx, column=0, sticky="w", padx=8, pady=2)
+        self._net_textbox.configure(state="disabled")
 
-            ctk.CTkLabel(
-                self._net_connections_frame, text=remote_ip,
-                font=MONO_FONT_SMALL, text_color=C_TEXT,
-            ).grid(row=row_idx, column=1, sticky="w", padx=8, pady=2)
-
-            ctk.CTkLabel(
-                self._net_connections_frame, text=remote_port,
-                font=MONO_FONT_SMALL, text_color=C_TEXT,
-            ).grid(row=row_idx, column=2, sticky="w", padx=8, pady=2)
-
-            ctk.CTkLabel(
-                self._net_connections_frame, text=status,
-                font=MONO_FONT_SMALL, text_color=status_color,
-            ).grid(row=row_idx, column=3, sticky="w", padx=8, pady=2)
-
-            ctk.CTkLabel(
-                self._net_connections_frame, text=proc,
-                font=MONO_FONT_SMALL, text_color=C_TEXT_DIM,
-            ).grid(row=row_idx, column=4, sticky="w", padx=8, pady=2)
-
-            # Ban button (only for non-empty remote IPs that are not local)
-            if remote_ip and not remote_ip.startswith("127.") and not remote_ip.startswith("0."):
-                ctk.CTkButton(
-                    self._net_connections_frame, text="Ban", font=BADGE_FONT,
-                    width=50, height=24,
-                    fg_color="#441122", hover_color="#662233", text_color=C_RED,
-                    command=lambda ip=remote_ip: self._ban_ip_action(ip),
-                ).grid(row=row_idx, column=5, padx=8, pady=2)
-
-        # Update banned IPs list
+        # Update banned/whitelist (lightweight - small lists)
         self._update_banned_display()
         self._update_whitelist_display()
 
@@ -1389,84 +1372,48 @@ class BlackwallGUI:
         if not self._threats_frame:
             return
 
-        # Clear table
-        for w in self._threats_frame.winfo_children():
-            w.destroy()
+        # Use textbox - no widget churn
+        if not hasattr(self, "_threats_textbox"):
+            for w in self._threats_frame.winfo_children():
+                w.destroy()
+            self._threats_textbox = ctk.CTkTextbox(
+                self._threats_frame, font=("Consolas", 12),
+                fg_color=C_BG_DARK, text_color=C_TEXT,
+                state="disabled", wrap="none",
+            )
+            self._threats_textbox.pack(fill="both", expand=True, padx=4, pady=4)
+            self._threats_textbox.tag_config("header", foreground=C_CYAN)
+            self._threats_textbox.tag_config("crit", foreground=C_RED)
+            self._threats_textbox.tag_config("high", foreground=C_ORANGE)
+            self._threats_textbox.tag_config("med", foreground=C_YELLOW)
+            self._threats_textbox.tag_config("low", foreground=C_GREEN)
 
-        # Headers
-        headers = ["IP Address", "Score", "Severity", "Country", "Events", "Actions"]
-        for col, h in enumerate(headers):
-            ctk.CTkLabel(
-                self._threats_frame, text=h, font=LABEL_FONT,
-                text_color=C_CYAN_DIM, anchor="w",
-            ).grid(row=0, column=col, sticky="w", padx=8, pady=(4, 8))
+        self._threats_textbox.configure(state="normal")
+        self._threats_textbox.delete("1.0", "end")
 
-        if not ts:
-            return
+        header = f"{'IP ADDRESS':<20} {'SCORE':>6} {'SEVERITY':<12} {'COUNTRY':<10} {'EVENTS':>7}\n"
+        header += "-" * 65 + "\n"
+        self._threats_textbox.insert("end", header, "header")
 
-        try:
-            threats = ts.get_top_threats(30)
-            for row_idx, t in enumerate(threats, start=1):
-                ip = t.get("ip", "")
-                score = t.get("score", 0)
-                severity = t.get("severity", "LOW")
-                country = t.get("country", "--")
-                events = t.get("event_count", 0)
-                sev_color = SEVERITY_COLORS.get(severity, C_TEXT)
+        if ts:
+            try:
+                for t in ts.get_top_threats(30):
+                    ip = t.get("ip", "")[:18]
+                    score = t.get("score", 0)
+                    sev = t.get("severity", "LOW")
+                    cc = t.get("country", "--")
+                    ev = t.get("event_count", 0)
+                    tag = {"CRITICAL": "crit", "HIGH": "high", "MEDIUM": "med"}.get(sev, "low")
+                    bar = "#" * min(int(score / 20), 20)
+                    line = f"{ip:<20} {score:>5} {sev:<12} {cc:<10} {ev:>7}  {bar}\n"
+                    self._threats_textbox.insert("end", line, tag)
+            except Exception:
+                pass
 
-                ctk.CTkLabel(
-                    self._threats_frame, text=ip,
-                    font=MONO_FONT_SMALL, text_color=C_TEXT,
-                ).grid(row=row_idx, column=0, sticky="w", padx=8, pady=2)
+        if not ts or not hasattr(ts, "get_top_threats"):
+            self._threats_textbox.insert("end", "  No threat data yet.\n", "low")
 
-                # Score with progress bar
-                score_frame = ctk.CTkFrame(self._threats_frame, fg_color="transparent")
-                score_frame.grid(row=row_idx, column=1, sticky="w", padx=8, pady=2)
-                ctk.CTkProgressBar(
-                    score_frame, width=80, height=12,
-                    progress_color=sev_color, fg_color=C_BG_INPUT,
-                ).pack(side="left", padx=(0, 4))
-                # Set progress bar value (0-1 range, max 999)
-                pb = score_frame.winfo_children()[0]
-                pb.set(min(score / 999, 1.0))
-                ctk.CTkLabel(
-                    score_frame, text=str(score), font=MONO_FONT_SMALL,
-                    text_color=sev_color,
-                ).pack(side="left")
-
-                # Severity badge
-                badge = ctk.CTkLabel(
-                    self._threats_frame, text=f" {severity} ",
-                    font=BADGE_FONT, text_color=sev_color,
-                    fg_color=C_BG_INPUT, corner_radius=4,
-                )
-                badge.grid(row=row_idx, column=2, sticky="w", padx=8, pady=2)
-
-                ctk.CTkLabel(
-                    self._threats_frame, text=country,
-                    font=MONO_FONT_SMALL, text_color=C_TEXT_DIM,
-                ).grid(row=row_idx, column=3, sticky="w", padx=8, pady=2)
-
-                ctk.CTkLabel(
-                    self._threats_frame, text=str(events),
-                    font=MONO_FONT_SMALL, text_color=C_TEXT,
-                ).grid(row=row_idx, column=4, sticky="w", padx=8, pady=2)
-
-                # Action buttons
-                act_frame = ctk.CTkFrame(self._threats_frame, fg_color="transparent")
-                act_frame.grid(row=row_idx, column=5, sticky="w", padx=8, pady=2)
-                ctk.CTkButton(
-                    act_frame, text="Ban", font=BADGE_FONT, width=42, height=22,
-                    fg_color="#441122", hover_color="#662233", text_color=C_RED,
-                    command=lambda i=ip: self._ban_ip_action(i),
-                ).pack(side="left", padx=(0, 4))
-                ctk.CTkButton(
-                    act_frame, text="WL", font=BADGE_FONT, width=36, height=22,
-                    fg_color="#113322", hover_color="#225533", text_color=C_GREEN,
-                    command=lambda i=ip: self._whitelist_ip_from_threats(i),
-                ).pack(side="left")
-        except Exception:
-            pass
+        self._threats_textbox.configure(state="disabled")
 
         # IDS attack log
         self._update_ids_log()
@@ -1568,105 +1515,62 @@ class BlackwallGUI:
         if not self._supply_frame:
             return
 
-        # Clear table
-        for w in self._supply_frame.winfo_children():
-            w.destroy()
+        # Use textbox - no widget churn
+        if not hasattr(self, "_supply_textbox"):
+            for w in self._supply_frame.winfo_children():
+                w.destroy()
+            self._supply_textbox = ctk.CTkTextbox(
+                self._supply_frame, font=("Consolas", 12),
+                fg_color=C_BG_DARK, text_color=C_TEXT,
+                state="disabled", wrap="none",
+            )
+            self._supply_textbox.pack(fill="both", expand=True, padx=4, pady=4)
+            self._supply_textbox.tag_config("header", foreground=C_CYAN)
+            self._supply_textbox.tag_config("ok", foreground=C_GREEN)
+            self._supply_textbox.tag_config("warn", foreground=C_YELLOW)
+            self._supply_textbox.tag_config("crit", foreground=C_RED)
 
-        # Headers
-        headers = ["Package", "Version", "Status", "Issue"]
-        for col, h in enumerate(headers):
-            ctk.CTkLabel(
-                self._supply_frame, text=h, font=LABEL_FONT,
-                text_color=C_CYAN_DIM, anchor="w",
-            ).grid(row=0, column=col, sticky="w", padx=8, pady=(4, 8))
+        self._supply_textbox.configure(state="normal")
+        self._supply_textbox.delete("1.0", "end")
+
+        header = f"{'PACKAGE':<30} {'VERSION':<15} {'STATUS':<12} {'ISSUE'}\n"
+        header += "-" * 80 + "\n"
+        self._supply_textbox.insert("end", header, "header")
 
         if not da:
-            ctk.CTkLabel(
-                self._supply_frame, text="Dependency auditor not loaded",
-                font=LABEL_FONT_SMALL, text_color=C_TEXT_DIM,
-            ).grid(row=1, column=0, columnspan=4, padx=8, pady=4)
+            self._supply_textbox.insert("end", "  Dependency auditor not loaded.\n", "warn")
+            self._supply_textbox.configure(state="disabled")
             return
 
         try:
-            # Try to get results from auditor
-            results = getattr(da, "results", [])
-            if callable(results):
-                results = results()
-            elif hasattr(da, "get_results"):
-                results = da.get_results()
-            elif hasattr(da, "findings"):
-                findings = da.findings
-                results = findings if isinstance(findings, list) else []
-
-            if not results:
-                # Try to get quick local scan data
-                if hasattr(da, "local_packages"):
-                    pkgs = da.local_packages
-                    if callable(pkgs):
-                        pkgs = pkgs()
-                    if isinstance(pkgs, dict):
-                        results = [
-                            {"package": k, "version": v, "status": "OK", "issue": ""}
-                            for k, v in list(pkgs.items())[:50]
-                        ]
-
-            if not results:
-                ctk.CTkLabel(
-                    self._supply_frame,
-                    text="No scan results yet. Click 'Run Full Scan' to start.",
-                    font=LABEL_FONT_SMALL, text_color=C_TEXT_DIM,
-                ).grid(row=1, column=0, columnspan=4, padx=8, pady=4)
-                return
-
-            for row_idx, r in enumerate(results[:100], start=1):
-                pkg = r.get("package", r.get("name", ""))
-                ver = r.get("version", "")
-                status = r.get("status", r.get("severity", "OK"))
-                issue = r.get("issue", r.get("description", ""))
-
-                # Status color
-                if status in ("CRITICAL", "critical"):
-                    s_color = C_RED
-                    s_text = "CRITICAL"
-                elif status in ("WARN", "WARNING", "HIGH", "high"):
-                    s_color = C_ORANGE
-                    s_text = "WARN"
-                elif status in ("MEDIUM", "medium"):
-                    s_color = C_YELLOW
-                    s_text = "WARN"
-                else:
-                    s_color = C_GREEN
-                    s_text = "OK"
-
-                ctk.CTkLabel(
-                    self._supply_frame, text=pkg,
-                    font=MONO_FONT_SMALL, text_color=C_TEXT,
-                ).grid(row=row_idx, column=0, sticky="w", padx=8, pady=2)
-
-                ctk.CTkLabel(
-                    self._supply_frame, text=ver,
-                    font=MONO_FONT_SMALL, text_color=C_TEXT_DIM,
-                ).grid(row=row_idx, column=1, sticky="w", padx=8, pady=2)
-
-                ctk.CTkLabel(
-                    self._supply_frame, text=f" {s_text} ",
-                    font=BADGE_FONT, text_color=s_color,
-                    fg_color=C_BG_INPUT, corner_radius=4,
-                ).grid(row=row_idx, column=2, sticky="w", padx=8, pady=2)
-
-                ctk.CTkLabel(
-                    self._supply_frame, text=issue[:60] if issue else "",
-                    font=LABEL_FONT_SMALL, text_color=C_TEXT_DIM,
-                ).grid(row=row_idx, column=3, sticky="w", padx=8, pady=2)
+            alerts = getattr(da, "_alerts", [])
+            if alerts:
+                for a in alerts[-50:]:
+                    sev = a.get("severity", "LOW")
+                    tag = {"CRITICAL": "crit", "HIGH": "warn", "MEDIUM": "warn"}.get(sev, "ok")
+                    pkg = a.get("package", a.get("type", ""))[:28]
+                    ver = a.get("version", "")[:13]
+                    desc = a.get("description", "")[:40]
+                    line = f"{pkg:<30} {ver:<15} {sev:<12} {desc}\n"
+                    self._supply_textbox.insert("end", line, tag)
+            else:
+                stats = {}
+                if hasattr(da, "get_stats"):
+                    stats = da.get_stats() or {}
+                total = stats.get("total_packages", "?")
+                self._supply_textbox.insert("end", f"  Packages tracked: {total}\n", "ok")
+                self._supply_textbox.insert("end", "  No issues found yet. Scan running in background.\n", "ok")
         except Exception:
-            pass
+            self._supply_textbox.insert("end", "  Scan in progress...\n", "warn")
+
+        self._supply_textbox.configure(state="disabled")
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
     def start(self):
         """Start the GUI application. Blocks until window is closed."""
-        self.root.after(2000, self._update_loop)
+        self.root.after(3000, self._update_loop)
         self.root.mainloop()
 
     def stop(self):

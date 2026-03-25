@@ -181,14 +181,15 @@ def load_config() -> dict:
 # Main
 # ═══════════════════════════════════════════════════════════════════════════
 
-async def main():
+async def main(quiet=False):
     """Main async entry point - starts all BLACKWALL subsystems."""
 
-    print(BANNER)
+    if not quiet:
+        print(BANNER)
+        _print_startup()
+
     config = load_config()
     log_dir = str(BLACKWALL_DIR / config.get("logging", {}).get("log_dir", "logs"))
-
-    _print_startup()
 
     # ===================================================================
     # SHARED COMPONENTS
@@ -626,60 +627,145 @@ def run_gui():
     """Launch BLACKWALL with desktop GUI (default mode)."""
     import threading
 
-    print(BANNER)
-    _print_startup()
-
-    config = load_config()
-    log_dir = str(BLACKWALL_DIR / config.get("logging", {}).get("log_dir", "logs"))
-
-    # --- Initialize all backend modules (same as main()) ---
-    from blackwall.monitor.geoip import GeoIPLookup
-    geoip = GeoIPLookup(config.get("geoip", {}))
-    threat_intel = ThreatIntelChecker(config.get("threat_intel", {}), log_dir=log_dir)
-    alert_mgr = AlertManager(config.get("alerts", {}), log_dir=log_dir)
-    threat_scorer = ThreatScorer()
-    rate_limiter = RateLimiter(config.get("rate_limiter", {}))
-    behavior = BehaviorEngine(config.get("behavior_engine", {}))
-    honeypot_mgr = HoneypotManager(config, log_dir=log_dir, geoip=geoip, threat_intel=threat_intel)
-    net_monitor = NetworkMonitor(config, log_dir=log_dir)
-    ids = IntrusionDetector(config, log_dir=log_dir)
-    auto_ban = AutoBan(config, log_dir=log_dir)
-
-    # Supply chain
-    async def _noop_alert(e): pass
-    supply_chain = SupplyChainGuardian(config=config.get("supply_chain", {}), alert_callback=_noop_alert, log_dir=log_dir)
-    credential_monitor = CredentialVaultMonitor(config=config.get("credential_monitor", {}), alert_callback=_noop_alert, log_dir=log_dir)
-    dependency_auditor = DependencyAuditor(alert_callback=_noop_alert, log_dir=log_dir)
-    container_monitor = ContainerSecurityMonitor(alert_callback=_noop_alert, config=config.get("container_monitor", {}), log_dir=log_dir)
-
-    # --- Create GUI ---
+    # --- Create GUI first (must be on main thread for tkinter) ---
     gui = BlackwallGUI()
-    gui.set_backend({
-        "honeypot_manager": honeypot_mgr,
-        "network_monitor": net_monitor,
-        "intrusion_detector": ids,
-        "auto_ban": auto_ban,
-        "geoip": geoip,
-        "threat_intel": threat_intel,
-        "threat_scorer": threat_scorer,
-        "behavior_engine": behavior,
-        "alert_manager": alert_mgr,
-        "supply_chain": supply_chain,
-        "credential_monitor": credential_monitor,
-        "dependency_auditor": dependency_auditor,
-        "container_monitor": container_monitor,
-    })
+
+    # Shared storage: main() will populate this with live backend refs
+    _backend_refs = {}
+
+    async def main_with_gui():
+        """Modified main() that shares backend objects with GUI."""
+        config = load_config()
+        log_dir = str(BLACKWALL_DIR / config.get("logging", {}).get("log_dir", "logs"))
+
+        # Shared components
+        geoip = GeoIPLookup(config.get("geoip", {}))
+        threat_intel = ThreatIntelChecker(config.get("threat_intel", {}), log_dir=log_dir)
+        alert_mgr = AlertManager(config.get("alerts", {}), log_dir=log_dir)
+        threat_scorer = ThreatScorer()
+        rate_limiter = RateLimiter(config.get("rate_limiter", {}))
+        behavior = BehaviorEngine(config.get("behavior_engine", {}))
+
+        honeypot_mgr = HoneypotManager(config, log_dir=log_dir, geoip=geoip, threat_intel=threat_intel)
+        net_monitor = NetworkMonitor(config, log_dir=log_dir)
+        ids = IntrusionDetector(config, log_dir=log_dir)
+        auto_ban = AutoBan(config, log_dir=log_dir)
+        arp_monitor = ARPMonitor(config.get("arp_monitor", {}), log_dir=log_dir)
+        proc_monitor = ProcessMonitor(config.get("process_monitor", {}), log_dir=log_dir)
+        fim = FileIntegrityMonitor(config.get("file_integrity", {}), log_dir=log_dir)
+        outbound = OutboundAnalyzer(config.get("outbound_analyzer", {}), log_dir=log_dir)
+        reg_monitor = RegistryMonitor(config.get("registry_monitor", {}), log_dir=log_dir)
+        bw_monitor = BandwidthMonitor(config.get("bandwidth_monitor", {}), log_dir=log_dir)
+        canary = CanaryTokens(config.get("canary_tokens", {}), log_dir=log_dir)
+        eventlog = EventLogMonitor(config.get("eventlog_monitor", {}), log_dir=log_dir)
+        usb_mon = USBMonitor(config.get("usb_monitor", {}), log_dir=log_dir)
+        anti_ddos = AntiDDoS(config.get("anti_ddos", {}), log_dir=log_dir, auto_ban=auto_ban)
+        anti_keylogger = AntiKeylogger(config.get("anti_keylogger", {}), log_dir=log_dir)
+        privacy_guard = PrivacyGuard(config.get("privacy_guard", {}), log_dir=log_dir)
+        browser_guard = BrowserGuard(config.get("browser_guard", {}), log_dir=log_dir)
+
+        # Supply chain
+        async def _sc_alert(e):
+            alert_mgr.handle_alert({"type": "SUPPLY_CHAIN", "severity": e.get("severity", "HIGH"),
+                                     "description": e.get("description", ""), "timestamp": e.get("timestamp", "")})
+        supply_chain = SupplyChainGuardian(config=config.get("supply_chain", {}), alert_callback=_sc_alert, log_dir=log_dir)
+        credential_monitor = CredentialVaultMonitor(config=config.get("credential_monitor", {}), alert_callback=_sc_alert, log_dir=log_dir)
+        dependency_auditor = DependencyAuditor(alert_callback=_sc_alert, log_dir=log_dir)
+        container_monitor = ContainerSecurityMonitor(alert_callback=_sc_alert, config=config.get("container_monitor", {}), log_dir=log_dir)
+
+        # Wire events
+        def on_honeypot_event(event):
+            ids.analyze_honeypot_event(event)
+            auto_ban.process_honeypot_event(event)
+            threat_scorer.process_honeypot_event(event)
+            alert_mgr.handle_alert({
+                "type": event.get("honeypot", "?").upper() + "_HIT", "severity": "MEDIUM",
+                "source_ip": event.get("source_ip", ""), "timestamp": event.get("timestamp", ""),
+                "description": f"{event.get('honeypot','?')} from {event.get('source_ip','?')}",
+            })
+        honeypot_mgr.on_alert(on_honeypot_event)
+
+        def on_attack(a):
+            auto_ban.process_attack(a)
+            alert_mgr.handle_alert(a)
+            threat_scorer.process_attack(a)
+        ids.on_attack(on_attack)
+
+        def on_net_alert(a):
+            if a.get("type") == "PORT_SCAN_DETECTED":
+                auto_ban.process_port_scan(a.get("source_ip", ""))
+            alert_mgr.handle_alert(a)
+        net_monitor.on_alert(on_net_alert)
+
+        for mon in [arp_monitor, proc_monitor, fim, outbound, behavior,
+                     anti_ddos, anti_keylogger, privacy_guard, browser_guard,
+                     reg_monitor, bw_monitor, canary, eventlog, usb_mon]:
+            mon.on_alert(lambda a: alert_mgr.handle_alert(a))
+
+        # --- SHARE REFS WITH GUI ---
+        gui.set_backend({
+            "honeypot_manager": honeypot_mgr, "network_monitor": net_monitor,
+            "intrusion_detector": ids, "auto_ban": auto_ban, "geoip": geoip,
+            "threat_intel": threat_intel, "threat_scorer": threat_scorer,
+            "behavior_engine": behavior, "alert_manager": alert_mgr,
+            "process_monitor": proc_monitor, "file_integrity": fim,
+            "arp_monitor": arp_monitor, "bandwidth_monitor": bw_monitor,
+            "outbound_analyzer": outbound, "registry_monitor": reg_monitor,
+            "eventlog_monitor": eventlog, "usb_monitor": usb_mon,
+            "canary_tokens": canary,
+            "supply_chain": supply_chain, "credential_monitor": credential_monitor,
+            "dependency_auditor": dependency_auditor, "container_monitor": container_monitor,
+        })
+
+        # Guarded task wrapper
+        async def _guarded(coro, name="?"):
+            try:
+                await coro
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                pass  # logged internally
+
+        # Heavy monitor runner
+        async def _heavy_runner():
+            await asyncio.sleep(12)
+            monitors = [(arp_monitor,"ARP"),(reg_monitor,"Reg"),(eventlog,"EvLog"),
+                        (usb_mon,"USB"),(anti_keylogger,"AKL"),(privacy_guard,"PG"),(browser_guard,"BG")]
+            for m,_ in monitors:
+                m._running = True
+            while any(m._running for m,_ in monitors):
+                for m,label in monitors:
+                    if not m._running or not getattr(m,"enabled",True): continue
+                    try: m.scan()
+                    except: pass
+                    await asyncio.sleep(0.5)
+                await asyncio.sleep(15)
+
+        await asyncio.gather(
+            _guarded(honeypot_mgr.start_all(), "Honeypots"),
+            _guarded(net_monitor.monitor_loop(), "Net"),
+            _guarded(threat_intel.refresh_loop(), "TI"),
+            _guarded(proc_monitor.monitor_loop(), "Proc"),
+            _guarded(fim.monitor_loop(), "FIM"),
+            _guarded(outbound.monitor_loop(), "OB"),
+            _guarded(bw_monitor.monitor_loop(), "BW"),
+            _guarded(canary.monitor_loop(), "Canary"),
+            _guarded(anti_ddos.monitor_loop(), "DDoS"),
+            _guarded(_heavy_runner(), "Heavy"),
+            _guarded(supply_chain.start(), "SC"),
+            _guarded(credential_monitor.start(), "Cred"),
+            _guarded(dependency_auditor.start(), "Dep"),
+            _guarded(container_monitor.start(), "Container"),
+        )
 
     # --- Start backend in background thread ---
     def _run_backend():
-        asyncio.run(main())
+        asyncio.run(main_with_gui())
 
     backend_thread = threading.Thread(target=_run_backend, daemon=True)
     backend_thread.start()
 
-    print("[BLACKWALL] GUI launching...\n")
-
-    # --- GUI mainloop (must be on main thread) ---
+    # --- GUI mainloop (must be on main thread for tkinter) ---
     gui.start()
 
 
