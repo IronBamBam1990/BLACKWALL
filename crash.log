@@ -1,0 +1,43 @@
+Windows fatal exception: access violation
+
+Thread 0x000046bc (most recent call first):
+  File "C:\Users\kamil\AppData\Roaming\Python\Python314\site-packages\psutil\_pswindows.py", line 978 in open_files
+  File "C:\Users\kamil\AppData\Roaming\Python\Python314\site-packages\psutil\_pswindows.py", line 666 in wrapper
+  File "C:\Users\kamil\AppData\Roaming\Python\Python314\site-packages\psutil\__init__.py", line 1224 in open_files
+  File "C:\Users\kamil\BLACKWALL\blackwall\supply_chain\credential_monitor.py", line 131 in _try_get_open_files_for_pid
+  File "C:\Users\kamil\BLACKWALL\blackwall\supply_chain\credential_monitor.py", line 558 in _gather_process_file_handles
+  File "C:\Python314\Lib\concurrent\futures\thread.py", line 73 in run
+  File "C:\Python314\Lib\concurrent\futures\thread.py", line 86 in run
+  File "C:\Python314\Lib\concurrent\futures\thread.py", line 119 in _worker
+  File "C:\Python314\Lib\threading.py", line 1023 in run
+  File "C:\Python314\Lib\threading.py", line 1081 in _bootstrap_inner
+  File "C:\Python314\Lib\threading.py", line 1043 in _bootstrap
+
+Thread 0x00006fc0 (most recent call first):
+  File "C:\Python314\Lib\concurrent\futures\thread.py", line 116 in _worker
+  File "C:\Python314\Lib\threading.py", line 1023 in run
+  File "C:\Python314\Lib\threading.py", line 1081 in _bootstrap_inner
+  File "C:\Python314\Lib\threading.py", line 1043 in _bootstrap
+
+Thread 0x00007074 (most recent call first):
+  File "C:\Python314\Lib\logging\__init__.py", line 1137 in flush
+  File "C:\Python314\Lib\logging\__init__.py", line 1155 in emit
+  File "C:\Python314\Lib\logging\__init__.py", line 1265 in emit
+  File "C:\Python314\Lib\logging\handlers.py", line 81 in emit
+  File "C:\Python314\Lib\logging\__init__.py", line 1027 in handle
+  File "C:\Python314\Lib\logging\__init__.py", line 1737 in callHandlers
+  File "C:\Python314\Lib\logging\__init__.py", line 1681 in handle
+  File "C:\Python314\Lib\logging\__init__.py", line 1665 in _log
+  File "C:\Python314\Lib\logging\__init__.py", line 1520 in info
+  File "C:\Users\kamil\BLACKWALL\blackwall\supply_chain\dependency_auditor.py", line 253 in run_full_audit
+  File "C:\Users\kamil\BLACKWALL\blackwall\supply_chain\dependency_auditor.py", line 228 in _full_audit_loop
+  File "C:\Python314\Lib\asyncio\events.py", line 94 in _run
+  File "C:\Python314\Lib\asyncio\base_events.py", line 2046 in _run_once
+  File "C:\Python314\Lib\asyncio\base_events.py", line 677 in run_forever
+  File "C:\Python314\Lib\asyncio\base_events.py", line 706 in run_until_complete
+  File "C:\Python314\Lib\asyncio\runners.py", line 127 in run
+  File "C:\Python314\Lib\asyncio\runners.py", line 204 in run
+  File "C:\Users\kamil\BLACKWALL\blackwall.py", line 626 in <module>
+
+Current thread's C stack trace (most recent call first):
+  <cannot get C stack on this system>

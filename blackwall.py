@@ -423,35 +423,44 @@ async def main():
     # ===================================================================
     print("\n[BLACKWALL] All systems nominal. Ctrl+C to disengage.\n")
 
+    # Wrap each subsystem in a shielded task so one crash doesn't kill everything
+    async def _guarded(coro, name="?"):
+        try:
+            await coro
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            print(f"[BLACKWALL] WARNING: {name} crashed: {type(e).__name__}: {e}")
+
     try:
         await asyncio.gather(
             # --- Honeypots (async, lightweight) ---
-            honeypot_mgr.start_all(),
+            _guarded(honeypot_mgr.start_all(), "Honeypots"),
 
             # --- Lightweight async monitors ---
-            net_monitor.monitor_loop(),
-            threat_intel.refresh_loop(),
-            proc_monitor.monitor_loop(),
-            fim.monitor_loop(),
-            outbound.monitor_loop(),
-            bw_monitor.monitor_loop(),
-            canary.monitor_loop(),
-            anti_ddos.monitor_loop(),
+            _guarded(net_monitor.monitor_loop(), "NetworkMonitor"),
+            _guarded(threat_intel.refresh_loop(), "ThreatIntel"),
+            _guarded(proc_monitor.monitor_loop(), "ProcessMonitor"),
+            _guarded(fim.monitor_loop(), "FileIntegrity"),
+            _guarded(outbound.monitor_loop(), "OutboundAnalyzer"),
+            _guarded(bw_monitor.monitor_loop(), "BandwidthMonitor"),
+            _guarded(canary.monitor_loop(), "CanaryTokens"),
+            _guarded(anti_ddos.monitor_loop(), "AntiDDoS"),
 
             # --- Heavy monitors (subprocess/PowerShell - safe_loop protection) ---
-            safe_monitor_loop(arp_monitor, label="ARP"),
-            safe_monitor_loop(reg_monitor, label="Registry"),
-            safe_monitor_loop(eventlog, label="EventLog"),
-            safe_monitor_loop(usb_mon, label="USB"),
-            safe_monitor_loop(anti_keylogger, label="AntiKeylogger"),
-            safe_monitor_loop(privacy_guard, label="PrivacyGuard"),
-            safe_monitor_loop(browser_guard, label="BrowserGuard"),
+            _guarded(safe_monitor_loop(arp_monitor, label="ARP"), "ARP"),
+            _guarded(safe_monitor_loop(reg_monitor, label="Registry"), "Registry"),
+            _guarded(safe_monitor_loop(eventlog, label="EventLog"), "EventLog"),
+            _guarded(safe_monitor_loop(usb_mon, label="USB"), "USB"),
+            _guarded(safe_monitor_loop(anti_keylogger, label="AntiKeylogger"), "AntiKeylogger"),
+            _guarded(safe_monitor_loop(privacy_guard, label="PrivacyGuard"), "PrivacyGuard"),
+            _guarded(safe_monitor_loop(browser_guard, label="BrowserGuard"), "BrowserGuard"),
 
             # --- Supply Chain modules ---
-            supply_chain.start(),
-            credential_monitor.start(),
-            dependency_auditor.start(),
-            container_monitor.start(),
+            _guarded(supply_chain.start(), "SupplyChainGuardian"),
+            _guarded(credential_monitor.start(), "CredentialVault"),
+            _guarded(dependency_auditor.start(), "DependencyAuditor"),
+            _guarded(container_monitor.start(), "ContainerSecurity"),
 
             # --- Dashboard ---
             dashboard.run(refresh_interval=refresh),

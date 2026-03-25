@@ -581,11 +581,13 @@ class SupplyChainGuardian:
         """Get dict of installed pip packages {name: version}."""
         packages = {}
         try:
-            result = await asyncio.to_thread(
-                subprocess.run,
-                [sys.executable, "-m", "pip", "list", "--format=json"],
-                capture_output=True, text=True, timeout=30,
+            result = await asyncio.create_subprocess_exec(
+                sys.executable, "-m", "pip", "list", "--format=json",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
+            stdout, _ = await asyncio.wait_for(result.communicate(), timeout=30)
+            result = type("R", (), {"returncode": result.returncode, "stdout": stdout.decode("utf-8", errors="replace")})()
             if result.returncode == 0 and result.stdout.strip():
                 for entry in json.loads(result.stdout):
                     packages[entry["name"].lower()] = entry.get("version", "unknown")
@@ -622,9 +624,7 @@ class SupplyChainGuardian:
                 self._scanned_pth.add(pth_str)
 
                 try:
-                    content = await asyncio.to_thread(pth_file.read_text,
-                                                      encoding="utf-8",
-                                                      errors="replace")
+                    content = pth_file.read_text(encoding="utf-8", errors="replace")
                 except Exception:
                     continue
 
@@ -694,9 +694,7 @@ class SupplyChainGuardian:
                 self._scanned_packages.add(pkg_name)
 
                 try:
-                    content = await asyncio.to_thread(
-                        init_file.read_text, encoding="utf-8", errors="replace"
-                    )
+                    content = init_file.read_text(encoding="utf-8", errors="replace")
                 except Exception:
                     continue
 
@@ -777,9 +775,7 @@ class SupplyChainGuardian:
             for setup_file in candidates:
                 setup_str = str(setup_file)
                 try:
-                    content = await asyncio.to_thread(
-                        setup_file.read_text, encoding="utf-8", errors="replace"
-                    )
+                    content = setup_file.read_text(encoding="utf-8", errors="replace")
                 except Exception:
                     continue
 
@@ -833,9 +829,7 @@ class SupplyChainGuardian:
     async def _analyze_requirements_txt(self, filepath: Path) -> None:
         """Analyze a requirements.txt for compromised/suspicious deps."""
         try:
-            content = await asyncio.to_thread(
-                filepath.read_text, encoding="utf-8", errors="replace"
-            )
+            content = filepath.read_text(encoding="utf-8", errors="replace")
         except Exception:
             return
 
@@ -880,9 +874,7 @@ class SupplyChainGuardian:
     async def _analyze_pyproject_toml(self, filepath: Path) -> None:
         """Analyze pyproject.toml for dependency issues."""
         try:
-            content = await asyncio.to_thread(
-                filepath.read_text, encoding="utf-8", errors="replace"
-            )
+            content = filepath.read_text(encoding="utf-8", errors="replace")
         except Exception:
             return
 
@@ -917,9 +909,7 @@ class SupplyChainGuardian:
     async def _analyze_package_json(self, filepath: Path) -> None:
         """Analyze package.json for compromised deps and transitive risk."""
         try:
-            content = await asyncio.to_thread(
-                filepath.read_text, encoding="utf-8", errors="replace"
-            )
+            content = filepath.read_text(encoding="utf-8", errors="replace")
             data = json.loads(content)
         except Exception as exc:
             self.logger.debug("Failed to parse %s: %s", filepath, exc)
@@ -1046,9 +1036,7 @@ class SupplyChainGuardian:
             return
 
         try:
-            content = await asyncio.to_thread(
-                pkg_json.read_text, encoding="utf-8", errors="replace"
-            )
+            content = pkg_json.read_text(encoding="utf-8", errors="replace")
             data = json.loads(content)
         except Exception:
             return

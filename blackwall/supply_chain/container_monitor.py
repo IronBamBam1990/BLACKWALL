@@ -473,9 +473,7 @@ class ContainerSecurityMonitor:
     async def _analyze_compose_file(self, fpath: Path) -> None:
         """Parse a compose file (plain text, no PyYAML dependency) for red flags."""
         try:
-            content = await asyncio.get_event_loop().run_in_executor(
-                None, fpath.read_text, "utf-8"
-            )
+            content = fpath.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
             self._logger.debug("Cannot read compose file %s: %s", fpath, exc)
             return

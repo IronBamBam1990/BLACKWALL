@@ -90,7 +90,8 @@ class AntiDDoS:
 
                 # Baseline z ostatnich 30 probek
                 if len(self._baseline_pps) >= 10:
-                    avg_pps = sum(list(self._baseline_pps)[:-1]) / (len(self._baseline_pps) - 1)
+                    baseline_list = list(self._baseline_pps)[:-1]
+                    avg_pps = sum(baseline_list) / len(baseline_list) if baseline_list else 0
                     if avg_pps > 0 and pps_in > avg_pps * self.packets_spike_multiplier:
                         alert = {
                             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -121,8 +122,8 @@ class AntiDDoS:
                     ip_counts[conn.raddr.ip] += 1
 
                 # SYN_RECV flood detection (half-open connections)
-                if conn.status == "SYN_RECV":
-                    ip_counts[conn.raddr.ip if conn.raddr else "unknown"] += 5  # Wazniejsze
+                if conn.status == "SYN_RECV" and conn.raddr:
+                    ip_counts[conn.raddr.ip] += 5  # Wazniejsze
 
             for ip, count in ip_counts.items():
                 if count >= self.conn_per_ip_threshold:
@@ -160,7 +161,7 @@ class AntiDDoS:
         self.logger.info("Anti-DDoS Monitor started")
         while self._running:
             try:
-                await asyncio.get_event_loop().run_in_executor(None, self.scan)
+                self.scan()
             except Exception as e:
                 self.logger.error(f"Scan error: {e}")
             await asyncio.sleep(self.interval)

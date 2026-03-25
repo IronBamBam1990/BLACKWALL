@@ -649,30 +649,43 @@ class BlackwallDashboard:
         except Exception:
             pass
 
-    def _poll_keyboard(self):
-        """Non-blocking keyboard poll (Windows)."""
-        try:
-            import msvcrt
-            while msvcrt.kbhit():
-                ch = msvcrt.getch()
-                if ch in (b"1", b"2", b"3", b"4", b"5"):
-                    self._page = int(ch) - 1
-                    self._page_timer = 0
-        except ImportError:
-            pass
+    def _start_keyboard_thread(self):
+        """Start keyboard listener in a daemon thread."""
+        import threading
+
+        def _kb_loop():
+            try:
+                import msvcrt
+            except ImportError:
+                return
+            while self._running:
+                try:
+                    if msvcrt.kbhit():
+                        ch = msvcrt.getch()
+                        if ch in (b"1", b"2", b"3", b"4", b"5"):
+                            self._page = int(ch) - 1
+                            self._page_timer = 0
+                except Exception:
+                    pass
+                import time
+                time.sleep(0.1)
+
+        t = threading.Thread(target=_kb_loop, daemon=True)
+        t.start()
 
     async def run(self, refresh_interval: float = 3.0):
         self._running = True
         self._enable_vt_processing()
-        self._render_count = 0
 
-        # Clean start
-        os.system("cls" if os.name == "nt" else "clear")
+        # Clear screen once at start (no repeated cls!)
+        sys.stdout.write("\033[2J\033[H")
+        sys.stdout.flush()
+
+        # Keyboard input in background thread (non-blocking)
+        self._start_keyboard_thread()
 
         while self._running:
             try:
-                self._poll_keyboard()
-
                 # Adapt to terminal size
                 try:
                     cols, rows = os.get_terminal_size()
@@ -683,7 +696,7 @@ class BlackwallDashboard:
                     force_terminal=True, color_system="truecolor",
                 )
 
-                # Render
+                # Render layout to buffer
                 self._buffer_console.print(self._build_layout(), height=rows - 1)
                 frame = self._buffer_console.file.getvalue()
 
@@ -693,11 +706,7 @@ class BlackwallDashboard:
                     lines = lines[:rows]
                 frame = "\n".join(lines)
 
-                # Full cls every 30 renders to fix drift
-                self._render_count += 1
-                if self._render_count % 30 == 1:
-                    os.system("cls" if os.name == "nt" else "clear")
-
+                # Move cursor home + overwrite (no cls flicker!)
                 sys.stdout.write("\033[H" + frame)
                 sys.stdout.flush()
 

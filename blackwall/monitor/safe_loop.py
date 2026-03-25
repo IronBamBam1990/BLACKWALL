@@ -1,16 +1,15 @@
 """
-Safe Monitor Loop - zapobiega nakladaniu sie skanow i zawieszaniu.
-Jesli scan trwa za dlugo, jest przerywany.
+Safe Monitor Loop - runs heavy (subprocess-based) monitors periodically.
+
+Python 3.14 + Windows: subprocess.run() in threads causes segfault via
+IOCP race condition. Solution: run scans directly in async loop with
+asyncio.sleep() yielding between scans. Each scan blocks briefly (~1-8s)
+but this is acceptable for non-critical monitors.
 """
 
 import asyncio
 import logging
-import time
-import concurrent.futures
-
-
-# Wspolny thread pool z limitem watkow
-_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=4, thread_name_prefix="monitor")
+import sys
 
 
 async def safe_monitor_loop(monitor, scan_method_name="scan", label="Monitor"):
@@ -19,23 +18,27 @@ async def safe_monitor_loop(monitor, scan_method_name="scan", label="Monitor"):
 
     monitor._running = True
     logger = getattr(monitor, "logger", logging.getLogger(label))
-    interval = getattr(monitor, "interval", 10)
-    scan_fn = getattr(monitor, scan_method_name)
-    max_scan_time = 25  # Max 25s per scan
+    interval = max(getattr(monitor, "interval", 15), 15)  # min 15s for heavy
+    scan_fn = getattr(monitor, scan_method_name, None)
 
-    logger.info(f"{label} started (interval={interval}s)")
+    if scan_fn is None:
+        logger.error(f"{label}: no method '{scan_method_name}' found")
+        return
+
+    logger.info(f"{label} monitor started (interval={interval}s)")
+
+    # Stagger start: wait 10-20s so honeypots and dashboard start first
+    await asyncio.sleep(10)
 
     while monitor._running:
         try:
-            loop = asyncio.get_event_loop()
-            # Timeout na scan - jesli trwa >25s, anuluj
-            await asyncio.wait_for(
-                loop.run_in_executor(_EXECUTOR, scan_fn),
-                timeout=max_scan_time,
-            )
-        except asyncio.TimeoutError:
-            logger.warning(f"{label}: scan timed out after {max_scan_time}s, skipping")
+            scan_fn()
+        except asyncio.CancelledError:
+            break
         except Exception as e:
-            logger.error(f"{label} error: {e}")
+            logger.error(f"{label} scan error: {e}")
 
-        await asyncio.sleep(interval)
+        try:
+            await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            break

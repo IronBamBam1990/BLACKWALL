@@ -213,7 +213,10 @@ class DependencyAuditor:
         self.logger.warning("ALERT [%s] %s: %s", alert["severity"], alert["type"], alert["description"])
         if self.alert_callback:
             try:
-                self.alert_callback(alert)
+                result = self.alert_callback(alert)
+                # Support async callbacks - schedule as task
+                if asyncio.iscoroutine(result):
+                    asyncio.ensure_future(result)
             except Exception as exc:
                 self.logger.error("Alert callback error: %s", exc)
 

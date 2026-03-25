@@ -123,14 +123,14 @@ DEFAULT_KNOWN_PROCESSES: Set[str] = {
 def _try_get_open_files_for_pid(pid: int) -> List[str]:
     """Best-effort list of file paths that *pid* currently has open.
 
-    Uses psutil.Process.open_files() which calls the Windows API under
-    the hood.  Returns an empty list on any failure (access denied, gone, etc.).
+    NOTE: psutil.Process.open_files() causes access violation (segfault) on
+    Python 3.14 + Windows due to NtQuerySystemInformation thread safety bug.
+    Disabled for now - returns empty list. File access monitoring uses
+    mtime/hash-based detection instead.
     """
-    try:
-        proc = psutil.Process(pid)
-        return [f.path for f in proc.open_files()]
-    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, OSError):
-        return []
+    # DISABLED: psutil.open_files() segfaults on Python 3.14 Windows
+    # See: https://github.com/giampaolo/psutil/issues/2366
+    return []
 
 
 # ---------------------------------------------------------------------------
@@ -457,11 +457,9 @@ class CredentialVaultMonitor:
         if not credential_lower:
             return
 
-        # Gather processes in a thread so we don't block the event loop
-        loop = asyncio.get_running_loop()
-        pid_files_map: Dict[int, List[str]] = await loop.run_in_executor(
-            None, self._gather_process_file_handles, credential_lower
-        )
+        # NOTE: Process file-handle sniffing disabled on Python 3.14 Windows
+        # due to psutil.open_files() segfault.  Hash/mtime monitoring is active.
+        pid_files_map: Dict[int, List[str]] = {}
 
         now = time.monotonic()
 
