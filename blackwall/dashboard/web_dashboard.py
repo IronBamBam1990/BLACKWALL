@@ -1,0 +1,601 @@
+"""
+BLACKWALL Web Dashboard - Flask-based security monitoring backend.
+Serves real-time JSON status from all BLACKWALL modules and a web UI.
+"""
+
+import logging
+import threading
+import webbrowser
+from datetime import datetime, timezone
+
+import psutil
+
+try:
+    from flask import Flask, jsonify, render_template
+except ImportError:
+    raise ImportError("Flask is required: pip install flask")
+
+
+class WebDashboard:
+    """Flask-powered web dashboard for the BLACKWALL security suite."""
+
+    def __init__(
+        self,
+        honeypot_manager=None,
+        network_monitor=None,
+        intrusion_detector=None,
+        auto_ban=None,
+        geoip=None,
+        threat_intel=None,
+        arp_monitor=None,
+        process_monitor=None,
+        file_integrity=None,
+        alert_manager=None,
+        threat_scorer=None,
+        canary_tokens=None,
+        usb_monitor=None,
+        eventlog_monitor=None,
+        bandwidth_monitor=None,
+        outbound_analyzer=None,
+        registry_monitor=None,
+        supply_chain=None,
+        credential_monitor=None,
+        dependency_auditor=None,
+        container_monitor=None,
+    ):
+        self.honeypot_mgr = honeypot_manager
+        self.net_monitor = network_monitor
+        self.ids = intrusion_detector
+        self.auto_ban = auto_ban
+        self.geoip = geoip
+        self.threat_intel = threat_intel
+        self.arp_monitor = arp_monitor
+        self.proc_monitor = process_monitor
+        self.fim = file_integrity
+        self.alert_mgr = alert_manager
+        self.threat_scorer = threat_scorer
+        self.canary = canary_tokens
+        self.usb_mon = usb_monitor
+        self.eventlog = eventlog_monitor
+        self.bw_mon = bandwidth_monitor
+        self.outbound = outbound_analyzer
+        self.reg_mon = registry_monitor
+        self.supply_chain = supply_chain
+        self.credential_monitor = credential_monitor
+        self.dependency_auditor = dependency_auditor
+        self.container_monitor = container_monitor
+
+        self._app = None
+        self._thread = None
+
+    # ------------------------------------------------------------------
+    #  Flask app factory
+    # ------------------------------------------------------------------
+
+    def _create_app(self) -> Flask:
+        app = Flask(__name__, template_folder="templates")
+        app.config["JSONIFY_PRETTYPRINT_REGULAR"] = False
+
+        # Silence Flask/Werkzeug request logging
+        log = logging.getLogger("werkzeug")
+        log.setLevel(logging.ERROR)
+        app.logger.setLevel(logging.ERROR)
+
+        @app.route("/")
+        def index():
+            return render_template("index.html")
+
+        @app.route("/api/status")
+        def api_status():
+            return jsonify(self._collect_status())
+
+        return app
+
+    # ------------------------------------------------------------------
+    #  Data collectors  (each returns a safe dict, never raises)
+    # ------------------------------------------------------------------
+
+    def _collect_status(self) -> dict:
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        return {
+            "time": now,
+            "honeypots": self._get_honeypots(),
+            "alerts": self._get_alerts(),
+            "banned": self._get_banned(),
+            "network": self._get_network(),
+            "countries": self._get_countries(),
+            "feeds": self._get_feeds(),
+            "attackers": self._get_attackers(),
+            "system": self._get_system(),
+            "arp": self._get_arp(),
+            "fim": self._get_fim(),
+            "processes": self._get_processes(),
+            "scores": self._get_scores(),
+            "canary": self._get_canary(),
+            "usb": self._get_usb(),
+            "eventlog": self._get_eventlog(),
+            "bandwidth": self._get_bandwidth(),
+            "registry": self._get_registry(),
+            "outbound": self._get_outbound(),
+            "supply_chain": self._get_supply_chain(),
+            "credentials": self._get_credentials(),
+            "dependencies": self._get_dependencies(),
+            "containers": self._get_containers(),
+            "totals": self._get_totals(),
+        }
+
+    # -- honeypots -----------------------------------------------------
+
+    def _get_honeypots(self) -> list:
+        try:
+            if not self.honeypot_mgr:
+                return []
+            stats = self.honeypot_mgr.get_stats()
+            by_type = stats.get("by_type", {})
+            result = []
+            for hp in self.honeypot_mgr.honeypots:
+                result.append({
+                    "name": hp.name.upper(),
+                    "port": hp.port,
+                    "hits": by_type.get(hp.name, 0),
+                    "status": "ON",
+                })
+            return result
+        except Exception:
+            return []
+
+    # -- alerts --------------------------------------------------------
+
+    def _get_alerts(self) -> list:
+        try:
+            alerts = []
+            if self.net_monitor:
+                alerts.extend(self.net_monitor.get_recent_alerts(20))
+            if self.ids:
+                alerts.extend(self.ids.detected_attacks[-20:])
+            alerts.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+            result = []
+            for a in alerts[:50]:
+                ts = a.get("timestamp", "")
+                try:
+                    ts = datetime.fromisoformat(ts).strftime("%H:%M:%S")
+                except Exception:
+                    ts = str(ts)[:8]
+                result.append({
+                    "time": ts,
+                    "severity": a.get("severity", "LOW"),
+                    "type": a.get("type", ""),
+                    "ip": a.get("source_ip", a.get("ip", "")),
+                    "description": a.get("description", "") or "",
+                })
+            return result
+        except Exception:
+            return []
+
+    # -- banned --------------------------------------------------------
+
+    def _get_banned(self) -> list:
+        try:
+            if not self.auto_ban:
+                return []
+            bans = self.auto_ban.get_ban_list()
+            result = []
+            for ip, info in bans.items():
+                reasons = info.get("reasons", [])
+                result.append({
+                    "ip": ip,
+                    "reason": reasons[-1] if reasons else "Unknown",
+                    "severity": info.get("severity", ""),
+                    "firewall": bool(info.get("firewall_rule_added")),
+                })
+            return result
+        except Exception:
+            return []
+
+    # -- network -------------------------------------------------------
+
+    def _get_network(self) -> dict:
+        try:
+            if not self.net_monitor:
+                return {"established": 0, "listeners": 0, "bytes_sent": 0,
+                        "bytes_recv": 0, "errors": 0}
+            s = self.net_monitor.get_network_stats()
+            c = self.net_monitor.get_active_connections()
+            est = sum(1 for x in c if x.get("status") == "ESTABLISHED")
+            lis = sum(1 for x in c if x.get("status") == "LISTEN")
+            return {
+                "established": est,
+                "listeners": lis,
+                "bytes_sent": s.get("bytes_sent", 0),
+                "bytes_recv": s.get("bytes_recv", 0),
+                "errors": s.get("errors_in", 0) + s.get("errors_out", 0),
+            }
+        except Exception:
+            return {"established": 0, "listeners": 0, "bytes_sent": 0,
+                    "bytes_recv": 0, "errors": 0}
+
+    # -- countries -----------------------------------------------------
+
+    def _get_countries(self) -> list:
+        try:
+            if not self.honeypot_mgr:
+                return []
+            bc = self.honeypot_mgr.get_stats().get("by_country", {})
+            result = []
+            for cc, cnt in sorted(bc.items(), key=lambda x: x[1], reverse=True):
+                name = cc
+                if self.geoip:
+                    for d in self.geoip._cache.values():
+                        if d.get("country") == cc:
+                            name = d.get("country_name", cc)
+                            break
+                result.append({"cc": cc, "name": name, "hits": cnt})
+            return result
+        except Exception:
+            return []
+
+    # -- feeds ---------------------------------------------------------
+
+    def _get_feeds(self) -> list:
+        try:
+            if not self.threat_intel:
+                return []
+            result = []
+            for name, fi in self.threat_intel.get_stats().get("feeds", {}).items():
+                updated = fi.get("last_update", "")
+                try:
+                    updated = datetime.fromisoformat(updated).strftime("%H:%M:%S")
+                except Exception:
+                    pass
+                result.append({
+                    "name": fi.get("description", name),
+                    "count": fi.get("count", 0),
+                    "updated": updated,
+                })
+            return result
+        except Exception:
+            return []
+
+    # -- attackers -----------------------------------------------------
+
+    def _get_attackers(self) -> list:
+        try:
+            if not self.honeypot_mgr:
+                return []
+            by_ip = self.honeypot_mgr.get_stats().get("by_ip", {})
+            top = sorted(by_ip.items(), key=lambda x: x[1], reverse=True)[:20]
+            result = []
+            for ip, hits in top:
+                cc = ""
+                ti = False
+                if self.geoip:
+                    cc = self.geoip.get_cached(ip).get("country", "")
+                if self.threat_intel:
+                    ti = bool(self.threat_intel.check_ip(ip))
+                result.append({
+                    "ip": ip,
+                    "hits": hits,
+                    "country": cc,
+                    "threat_intel": ti,
+                })
+            return result
+        except Exception:
+            return []
+
+    # -- system --------------------------------------------------------
+
+    def _get_system(self) -> dict:
+        try:
+            cpu = psutil.cpu_percent(interval=0)
+            mem = psutil.virtual_memory()
+            disk = psutil.disk_usage("C:\\")
+            return {
+                "cpu": round(cpu, 1),
+                "ram": round(mem.percent, 1),
+                "ram_used_mb": mem.used // (1024 ** 2),
+                "ram_total_mb": mem.total // (1024 ** 2),
+                "disk": round(disk.percent, 1),
+            }
+        except Exception:
+            return {"cpu": 0.0, "ram": 0.0, "ram_used_mb": 0,
+                    "ram_total_mb": 0, "disk": 0.0}
+
+    # -- arp -----------------------------------------------------------
+
+    def _get_arp(self) -> dict:
+        try:
+            if not self.arp_monitor:
+                return {"gateway_ip": "", "gateway_mac": "", "entries": 0, "alerts": 0}
+            s = self.arp_monitor.get_stats()
+            return {
+                "gateway_ip": s.get("gateway_ip", "") or "",
+                "gateway_mac": s.get("gateway_mac", "") or "",
+                "entries": s.get("entries", 0),
+                "alerts": s.get("alerts", 0),
+            }
+        except Exception:
+            return {"gateway_ip": "", "gateway_mac": "", "entries": 0, "alerts": 0}
+
+    # -- file integrity ------------------------------------------------
+
+    def _get_fim(self) -> dict:
+        try:
+            if not self.fim:
+                return {"monitored": 0, "baseline": 0, "changes": 0, "alerts": 0}
+            s = self.fim.get_stats()
+            return {
+                "monitored": s.get("monitored_files", 0),
+                "baseline": s.get("baseline_files", 0),
+                "changes": s.get("changes_detected", 0),
+                "alerts": s.get("alerts", 0),
+            }
+        except Exception:
+            return {"monitored": 0, "baseline": 0, "changes": 0, "alerts": 0}
+
+    # -- processes -----------------------------------------------------
+
+    def _get_processes(self) -> list:
+        try:
+            if not self.proc_monitor:
+                return []
+            result = []
+            for p in self.proc_monitor.get_recent_processes(20):
+                ts = p.get("timestamp", "")
+                try:
+                    ts = datetime.fromisoformat(ts).strftime("%H:%M:%S")
+                except Exception:
+                    ts = str(ts)[:8]
+                result.append({
+                    "time": ts,
+                    "name": p.get("name", ""),
+                    "parent": p.get("parent_name", ""),
+                    "severity": p.get("severity", "LOW"),
+                })
+            return result
+        except Exception:
+            return []
+
+    # -- threat scores -------------------------------------------------
+
+    def _get_scores(self) -> list:
+        try:
+            if not self.threat_scorer:
+                return []
+            result = []
+            for th in self.threat_scorer.get_top_threats(20):
+                result.append({
+                    "ip": th.get("ip", ""),
+                    "score": th.get("score", 0),
+                    "severity": th.get("severity", ""),
+                    "country": th.get("country", ""),
+                    "honeypots_hit": th.get("honeypots_hit", 0),
+                })
+            return result
+        except Exception:
+            return []
+
+    # -- canary tokens -------------------------------------------------
+
+    def _get_canary(self) -> dict:
+        try:
+            if not self.canary:
+                return {"deployed": 0, "triggered": 0, "locations": 0}
+            s = self.canary.get_stats()
+            return {
+                "deployed": s.get("deployed", 0),
+                "triggered": s.get("alerts", 0),
+                "locations": len(s.get("locations", [])),
+            }
+        except Exception:
+            return {"deployed": 0, "triggered": 0, "locations": 0}
+
+    # -- usb -----------------------------------------------------------
+
+    def _get_usb(self) -> dict:
+        try:
+            if not self.usb_mon:
+                return {"devices": 0, "alerts": 0}
+            s = self.usb_mon.get_stats()
+            return {
+                "devices": s.get("known_devices", 0),
+                "alerts": s.get("alerts", 0),
+            }
+        except Exception:
+            return {"devices": 0, "alerts": 0}
+
+    # -- eventlog ------------------------------------------------------
+
+    def _get_eventlog(self) -> list:
+        try:
+            if not self.eventlog:
+                return []
+            result = []
+            for a in self.eventlog.alerts[-20:]:
+                ts = a.get("timestamp", "")
+                try:
+                    ts = datetime.fromisoformat(ts).strftime("%H:%M:%S")
+                except Exception:
+                    ts = str(ts)[:8]
+                result.append({
+                    "time": ts,
+                    "event": a.get("type", ""),
+                    "severity": a.get("severity", "LOW"),
+                })
+            return result
+        except Exception:
+            return []
+
+    # -- bandwidth -----------------------------------------------------
+
+    def _get_bandwidth(self) -> dict:
+        try:
+            if not self.bw_mon:
+                return {"upload": "0 B/s", "download": "0 B/s", "alerts": 0}
+            s = self.bw_mon.get_stats()
+            return {
+                "upload": s.get("send_rate", "0 B/s"),
+                "download": s.get("recv_rate", "0 B/s"),
+                "alerts": s.get("alerts", 0),
+            }
+        except Exception:
+            return {"upload": "0 B/s", "download": "0 B/s", "alerts": 0}
+
+    # -- registry ------------------------------------------------------
+
+    def _get_registry(self) -> dict:
+        try:
+            if not self.reg_mon:
+                return {"services": 0, "tasks": 0, "alerts": 0}
+            s = self.reg_mon.get_stats()
+            return {
+                "services": s.get("services", 0),
+                "tasks": s.get("scheduled_tasks", 0),
+                "alerts": s.get("alerts", 0),
+            }
+        except Exception:
+            return {"services": 0, "tasks": 0, "alerts": 0}
+
+    # -- outbound ------------------------------------------------------
+
+    def _get_outbound(self) -> dict:
+        try:
+            if not self.outbound:
+                return {"tracked": 0, "alerts": 0}
+            s = self.outbound.get_stats()
+            return {
+                "tracked": s.get("tracked_connections", 0),
+                "alerts": s.get("alerts", 0),
+            }
+        except Exception:
+            return {"tracked": 0, "alerts": 0}
+
+    # -- supply chain --------------------------------------------------
+
+    def _get_supply_chain(self) -> dict:
+        try:
+            if not self.supply_chain:
+                return {"status": "offline", "compromised_found": 0,
+                        "pth_files": 0, "typosquats": 0, "pip_monitoring": False}
+            s = (self.supply_chain.get_stats()
+                 if hasattr(self.supply_chain, "get_stats") else {})
+            return {
+                "status": "active",
+                "compromised_found": s.get("compromised_packages", 0),
+                "pth_files": s.get("pth_files_detected", 0),
+                "typosquats": s.get("typosquatting_alerts", 0),
+                "pip_monitoring": bool(s.get("pip_monitoring", False)),
+            }
+        except Exception:
+            return {"status": "error", "compromised_found": 0,
+                    "pth_files": 0, "typosquats": 0, "pip_monitoring": False}
+
+    # -- credentials ---------------------------------------------------
+
+    def _get_credentials(self) -> dict:
+        try:
+            if not self.credential_monitor:
+                return {"monitored_files": 0, "baseline_ok": False,
+                        "access_alerts": 0, "exfiltration_attempts": 0}
+            s = (self.credential_monitor.get_stats()
+                 if hasattr(self.credential_monitor, "get_stats") else {})
+            baseline = s.get("baseline_status", "Unknown")
+            return {
+                "monitored_files": s.get("monitored_files", 0),
+                "baseline_ok": baseline in ("OK", "Valid", True),
+                "access_alerts": s.get("recent_access_alerts", 0),
+                "exfiltration_attempts": s.get("exfiltration_attempts", 0),
+            }
+        except Exception:
+            return {"monitored_files": 0, "baseline_ok": False,
+                    "access_alerts": 0, "exfiltration_attempts": 0}
+
+    # -- dependencies --------------------------------------------------
+
+    def _get_dependencies(self) -> dict:
+        try:
+            if not self.dependency_auditor:
+                return {"total_packages": 0, "direct": 0, "transitive": 0,
+                        "abandoned": 0, "integrity_fails": 0}
+            s = (self.dependency_auditor.get_stats()
+                 if hasattr(self.dependency_auditor, "get_stats") else {})
+            return {
+                "total_packages": s.get("total_packages", 0),
+                "direct": s.get("direct_deps", 0),
+                "transitive": s.get("transitive_deps", 0),
+                "abandoned": s.get("abandoned_packages", 0),
+                "integrity_fails": s.get("integrity_failures", 0),
+            }
+        except Exception:
+            return {"total_packages": 0, "direct": 0, "transitive": 0,
+                    "abandoned": 0, "integrity_fails": 0}
+
+    # -- containers ----------------------------------------------------
+
+    def _get_containers(self) -> dict:
+        try:
+            if not self.container_monitor:
+                return {"docker_available": False, "running": 0,
+                        "privileged": 0, "crypto_miners": 0}
+            s = (self.container_monitor.get_stats()
+                 if hasattr(self.container_monitor, "get_stats") else {})
+            docker = s.get("docker_status", "Unknown")
+            return {
+                "docker_available": docker in ("Running", "Active", "OK"),
+                "running": s.get("running_containers", 0),
+                "privileged": s.get("privileged_containers", 0),
+                "crypto_miners": s.get("crypto_miners", 0),
+            }
+        except Exception:
+            return {"docker_available": False, "running": 0,
+                    "privileged": 0, "crypto_miners": 0}
+
+    # -- totals --------------------------------------------------------
+
+    def _get_totals(self) -> dict:
+        try:
+            events = 0
+            bans = 0
+            alerts = 0
+            if self.honeypot_mgr:
+                events = getattr(self.honeypot_mgr, "_event_count", 0)
+            if self.auto_ban:
+                bans = len(self.auto_ban.get_ban_list())
+            if self.net_monitor:
+                alerts = len(getattr(self.net_monitor, "alerts", []))
+            return {"events": events, "bans": bans, "alerts": alerts}
+        except Exception:
+            return {"events": 0, "bans": 0, "alerts": 0}
+
+    # ------------------------------------------------------------------
+    #  Startup methods
+    # ------------------------------------------------------------------
+
+    def start(self, host: str = "127.0.0.1", port: int = 5000) -> None:
+        """Start the web dashboard (blocking). Opens browser automatically."""
+        self._app = self._create_app()
+        url = f"http://{host}:{port}"
+        # Open browser after a short delay so Flask is ready
+        timer = threading.Timer(1.5, webbrowser.open, args=(url,))
+        timer.daemon = True
+        timer.start()
+        self._app.run(host=host, port=port, debug=False, use_reloader=False)
+
+    async def start_async(self, host: str = "127.0.0.1", port: int = 5000) -> None:
+        """Start Flask in a background daemon thread. Keeps running as async task."""
+        import asyncio
+        self._app = self._create_app()
+        url = f"http://{host}:{port}"
+
+        def _run_server():
+            self._app.run(host=host, port=port, debug=False, use_reloader=False)
+
+        self._thread = threading.Thread(target=_run_server, daemon=True)
+        self._thread.start()
+
+        # Open browser after Flask starts
+        await asyncio.sleep(2)
+        webbrowser.open(url)
+
+        # Keep this coroutine alive so gather() doesn't exit
+        while self._thread.is_alive():
+            await asyncio.sleep(5)

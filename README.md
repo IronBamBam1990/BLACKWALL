@@ -1,5 +1,7 @@
 # BLACKWALL
 
+![BLACKWALL Banner](docs/blackwall_banner.avif)
+
 > *"The Blackwall's task was to secure an area of cyberspace for human use while holding at bay the threat of the dangerous rogue AIs that were released decades earlier into the Net."*
 > — Cyberpunk 2077
 

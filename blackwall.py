@@ -84,7 +84,7 @@ from blackwall.supply_chain.container_monitor import ContainerSecurityMonitor
 # Utils & Dashboard
 # ---------------------------------------------------------------------------
 from blackwall.utils.crypto import LogEncryptor
-from blackwall.dashboard.dashboard import BlackwallDashboard
+from blackwall.dashboard.web_dashboard import WebDashboard
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Banner
@@ -387,9 +387,9 @@ async def main():
     usb_mon.on_alert(lambda a: alert_mgr.handle_alert(a))
 
     # ===================================================================
-    # DASHBOARD
+    # WEB DASHBOARD
     # ===================================================================
-    dashboard = BlackwallDashboard(
+    dashboard = WebDashboard(
         honeypot_manager=honeypot_mgr,
         network_monitor=net_monitor,
         intrusion_detector=ids,
@@ -407,16 +407,11 @@ async def main():
         bandwidth_monitor=bw_monitor,
         outbound_analyzer=outbound,
         registry_monitor=reg_monitor,
+        supply_chain=supply_chain,
+        credential_monitor=credential_monitor,
+        dependency_auditor=dependency_auditor,
+        container_monitor=container_monitor,
     )
-
-    # Attach supply chain modules to dashboard for display
-    # (will be natively supported once dashboard upgrade completes)
-    dashboard.supply_chain = supply_chain
-    dashboard.credential_monitor = credential_monitor
-    dashboard.dependency_auditor = dependency_auditor
-    dashboard.container_monitor = container_monitor
-
-    refresh = config.get("dashboard", {}).get("refresh_interval_seconds", 3)
 
     # ===================================================================
     # LAUNCH ALL TASKS
@@ -432,12 +427,43 @@ async def main():
         except Exception as e:
             print(f"[BLACKWALL] WARNING: {name} crashed: {type(e).__name__}: {e}")
 
+    # Heavy monitors run their scans sequentially in one background task
+    # so they don't block the async event loop (each scan calls PowerShell)
+    async def _heavy_monitor_runner():
+        """Run all heavy (subprocess-based) monitors sequentially in a loop."""
+        await asyncio.sleep(12)  # Let honeypots + dashboard start first
+        monitors = [
+            (arp_monitor, "ARP"),
+            (reg_monitor, "Registry"),
+            (eventlog, "EventLog"),
+            (usb_mon, "USB"),
+            (anti_keylogger, "AntiKeylogger"),
+            (privacy_guard, "PrivacyGuard"),
+            (browser_guard, "BrowserGuard"),
+        ]
+        # Initialize all
+        for mon, _ in monitors:
+            mon._running = True
+
+        while any(mon._running for mon, _ in monitors):
+            for mon, label in monitors:
+                if not mon._running or not getattr(mon, "enabled", True):
+                    continue
+                try:
+                    mon.scan()
+                except Exception as e:
+                    pass  # Logged internally
+                # Yield to event loop between each scan!
+                await asyncio.sleep(0.5)
+            # Wait between full rounds
+            await asyncio.sleep(15)
+
     try:
         await asyncio.gather(
             # --- Honeypots (async, lightweight) ---
             _guarded(honeypot_mgr.start_all(), "Honeypots"),
 
-            # --- Lightweight async monitors ---
+            # --- Lightweight async monitors (pure async, no blocking) ---
             _guarded(net_monitor.monitor_loop(), "NetworkMonitor"),
             _guarded(threat_intel.refresh_loop(), "ThreatIntel"),
             _guarded(proc_monitor.monitor_loop(), "ProcessMonitor"),
@@ -447,14 +473,8 @@ async def main():
             _guarded(canary.monitor_loop(), "CanaryTokens"),
             _guarded(anti_ddos.monitor_loop(), "AntiDDoS"),
 
-            # --- Heavy monitors (subprocess/PowerShell - safe_loop protection) ---
-            _guarded(safe_monitor_loop(arp_monitor, label="ARP"), "ARP"),
-            _guarded(safe_monitor_loop(reg_monitor, label="Registry"), "Registry"),
-            _guarded(safe_monitor_loop(eventlog, label="EventLog"), "EventLog"),
-            _guarded(safe_monitor_loop(usb_mon, label="USB"), "USB"),
-            _guarded(safe_monitor_loop(anti_keylogger, label="AntiKeylogger"), "AntiKeylogger"),
-            _guarded(safe_monitor_loop(privacy_guard, label="PrivacyGuard"), "PrivacyGuard"),
-            _guarded(safe_monitor_loop(browser_guard, label="BrowserGuard"), "BrowserGuard"),
+            # --- Heavy monitors (ONE sequential runner, yields between scans) ---
+            _guarded(_heavy_monitor_runner(), "HeavyMonitors"),
 
             # --- Supply Chain modules ---
             _guarded(supply_chain.start(), "SupplyChainGuardian"),
@@ -462,8 +482,8 @@ async def main():
             _guarded(dependency_auditor.start(), "DependencyAuditor"),
             _guarded(container_monitor.start(), "ContainerSecurity"),
 
-            # --- Dashboard ---
-            dashboard.run(refresh_interval=refresh),
+            # --- Web Dashboard (Flask in background thread + browser auto-open) ---
+            _guarded(dashboard.start_async(), "WebDashboard"),
         )
     except (KeyboardInterrupt, asyncio.CancelledError):
         pass
@@ -526,7 +546,7 @@ async def main():
             except Exception:
                 pass
 
-        dashboard.stop()
+        # Web dashboard runs in daemon thread - stops automatically
         geoip.close()
 
         print("[BLACKWALL] All systems offline. The wall sleeps.")
