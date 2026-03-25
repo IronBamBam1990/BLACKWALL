@@ -24,6 +24,11 @@ import sys
 import time
 from pathlib import Path
 
+# Force UTF-8 output on Windows (cp1250/cp1252 can't handle box-drawing chars)
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 # ---------------------------------------------------------------------------
 # Path setup - ensure blackwall/ subpackage is importable
 # ---------------------------------------------------------------------------
@@ -79,10 +84,7 @@ from blackwall.supply_chain.container_monitor import ContainerSecurityMonitor
 # Utils & Dashboard
 # ---------------------------------------------------------------------------
 from blackwall.utils.crypto import LogEncryptor
-from blackwall.dashboard.dashboard import SecurityDashboard
-
-# Alias for BLACKWALL branding - dashboard will be upgraded separately
-BlackwallDashboard = SecurityDashboard
+from blackwall.dashboard.dashboard import BlackwallDashboard
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Banner
