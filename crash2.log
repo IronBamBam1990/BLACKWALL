@@ -1,3 +1,0 @@
-C:\Users\kamil\BLACKWALL\blackwall\supply_chain\dependency_auditor.py:216: RuntimeWarning: coroutine 'main.<locals>._dependency_alert' was never awaited
-  self.alert_callback(alert)
-RuntimeWarning: Enable tracemalloc to get the object allocation traceback
