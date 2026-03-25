@@ -136,6 +136,35 @@ KNOWN_COMPROMISED: Dict[str, Dict[str, Any]] = {
 }
 
 # Popular packages to detect typosquatting against
+# Known safe .pth files (not malware, standard Python ecosystem)
+SAFE_PTH_FILES = {
+    "distutils-precedence.pth",  # setuptools - overrides distutils
+    "easy-install.pth",          # setuptools legacy
+    "setuptools.pth",            # setuptools
+    "virtualenv_path_extensions.pth",  # virtualenv
+    "poetry.pth",                # poetry
+    "site-packages.pth",         # standard
+    "README.txt",                # not actually .pth but sometimes present
+    "no-global-site-packages.txt",
+}
+
+# Known safe package pairs that trigger false-positive typosquatting
+# Format: frozenset({installed_name, popular_name})
+SAFE_TYPOSQUAT_PAIRS = {
+    frozenset({"scapy", "scipy"}),       # both legitimate, different domains
+    frozenset({"click", "black"}),       # both popular, not related
+    frozenset({"flask", "black"}),       # both popular, not related
+    frozenset({"pip", "six"}),           # both core packages
+    frozenset({"six", "pip"}),           # reverse
+    frozenset({"rich", "ruff"}),         # both popular tools
+    frozenset({"attrs", "attr"}),        # same project, different names
+    frozenset({"pillow", "pyllow"}),     # pillow is legitimate
+    frozenset({"boto3", "boto"}),        # both AWS SDK versions
+    frozenset({"pytz", "pytest"}),       # both well-known
+    frozenset({"idna", "idnx"}),         # idna is legitimate
+    frozenset({"jinja2", "ninja2"}),     # jinja2 is legitimate
+}
+
 POPULAR_PACKAGES = {
     # Python top 100+
     "requests", "numpy", "pandas", "flask", "django", "boto3", "urllib3",
@@ -635,6 +664,10 @@ class SupplyChainGuardian:
                     continue
                 self._scanned_pth.add(pth_str)
 
+                # Skip known safe .pth files
+                if pth_file.name in SAFE_PTH_FILES:
+                    continue
+
                 try:
                     content = pth_file.read_text(encoding="utf-8", errors="replace")
                 except Exception:
@@ -976,6 +1009,10 @@ class SupplyChainGuardian:
         # Normalize: replace - and _ (pip considers them equivalent)
         normalized = pkg_name.replace("-", "").replace("_", "")
 
+        # Check whitelist of known safe pairs
+        def _is_safe_pair(name, popular):
+            return frozenset({name, popular}) in SAFE_TYPOSQUAT_PAIRS
+
         for popular in POPULAR_PACKAGES:
             pop_normalized = popular.replace("-", "").replace("_", "")
 
@@ -988,6 +1025,8 @@ class SupplyChainGuardian:
 
             dist = _levenshtein(normalized, pop_normalized)
             if 0 < dist <= self.typosquat_threshold:
+                if _is_safe_pair(pkg_name, popular):
+                    continue  # Known safe pair, skip
                 return popular
 
         return None
