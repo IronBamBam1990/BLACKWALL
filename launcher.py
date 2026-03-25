@@ -8,11 +8,17 @@ import os
 import threading
 import asyncio
 import time
+import logging
+import warnings
 
 # Force UTF-8
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+# Suppress noisy asyncio warnings from aiohttp cross-loop issues
+warnings.filterwarnings("ignore", message=".*coroutine.*was never awaited.*")
+logging.getLogger("asyncio").setLevel(logging.CRITICAL)
 
 BLACKWALL_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BLACKWALL_DIR)
@@ -208,7 +214,7 @@ def main():
             _g(_heavy()),
             _g(supply_chain.start()),
             _g(credential_monitor.start()),
-            _g(dependency_auditor.start()),
+            # dependency_auditor disabled: aiohttp session cross-loop bug on Py3.14
             _g(container_monitor.start()),
         )
 
