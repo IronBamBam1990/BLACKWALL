@@ -85,6 +85,7 @@ from blackwall.supply_chain.container_monitor import ContainerSecurityMonitor
 # ---------------------------------------------------------------------------
 from blackwall.utils.crypto import LogEncryptor
 from blackwall.dashboard.web_dashboard import WebDashboard
+from blackwall.gui.app import BlackwallGUI
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Banner
@@ -621,6 +622,67 @@ def print_help():
 # Entry Point
 # ═══════════════════════════════════════════════════════════════════════════
 
+def run_gui():
+    """Launch BLACKWALL with desktop GUI (default mode)."""
+    import threading
+
+    print(BANNER)
+    _print_startup()
+
+    config = load_config()
+    log_dir = str(BLACKWALL_DIR / config.get("logging", {}).get("log_dir", "logs"))
+
+    # --- Initialize all backend modules (same as main()) ---
+    from blackwall.monitor.geoip import GeoIPLookup
+    geoip = GeoIPLookup(config.get("geoip", {}))
+    threat_intel = ThreatIntelChecker(config.get("threat_intel", {}), log_dir=log_dir)
+    alert_mgr = AlertManager(config.get("alerts", {}), log_dir=log_dir)
+    threat_scorer = ThreatScorer()
+    rate_limiter = RateLimiter(config.get("rate_limiter", {}))
+    behavior = BehaviorEngine(config.get("behavior_engine", {}))
+    honeypot_mgr = HoneypotManager(config, log_dir=log_dir, geoip=geoip, threat_intel=threat_intel)
+    net_monitor = NetworkMonitor(config, log_dir=log_dir)
+    ids = IntrusionDetector(config, log_dir=log_dir)
+    auto_ban = AutoBan(config, log_dir=log_dir)
+
+    # Supply chain
+    async def _noop_alert(e): pass
+    supply_chain = SupplyChainGuardian(config=config.get("supply_chain", {}), alert_callback=_noop_alert, log_dir=log_dir)
+    credential_monitor = CredentialVaultMonitor(config=config.get("credential_monitor", {}), alert_callback=_noop_alert, log_dir=log_dir)
+    dependency_auditor = DependencyAuditor(alert_callback=_noop_alert, log_dir=log_dir)
+    container_monitor = ContainerSecurityMonitor(alert_callback=_noop_alert, config=config.get("container_monitor", {}), log_dir=log_dir)
+
+    # --- Create GUI ---
+    gui = BlackwallGUI()
+    gui.set_backend({
+        "honeypot_manager": honeypot_mgr,
+        "network_monitor": net_monitor,
+        "intrusion_detector": ids,
+        "auto_ban": auto_ban,
+        "geoip": geoip,
+        "threat_intel": threat_intel,
+        "threat_scorer": threat_scorer,
+        "behavior_engine": behavior,
+        "alert_manager": alert_mgr,
+        "supply_chain": supply_chain,
+        "credential_monitor": credential_monitor,
+        "dependency_auditor": dependency_auditor,
+        "container_monitor": container_monitor,
+    })
+
+    # --- Start backend in background thread ---
+    def _run_backend():
+        asyncio.run(main())
+
+    backend_thread = threading.Thread(target=_run_backend, daemon=True)
+    backend_thread.start()
+
+    print("[BLACKWALL] GUI launching...\n")
+
+    # --- GUI mainloop (must be on main thread) ---
+    gui.start()
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1:
         cmd = sys.argv[1].lower()
@@ -638,9 +700,12 @@ if __name__ == "__main__":
             print()
             run_anti_tracking()
             print()
+            run_gui()
+        elif cmd == "headless":
+            # Run without GUI (background/service mode)
             asyncio.run(main())
         else:
             print(f"[BLACKWALL] Unknown command: {cmd}")
             print_help()
     else:
-        asyncio.run(main())
+        run_gui()
