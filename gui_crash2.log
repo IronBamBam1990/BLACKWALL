@@ -1,8 +1,0 @@
-Traceback (most recent call last):
-  File "<string>", line 11, in <module>
-    exec(open('blackwall.py').read())
-         ~~~~~~~~~~~~~~~~~~~~~~~~~^^
-  File "C:\Python314\Lib\encodings\cp1250.py", line 23, in decode
-    return codecs.charmap_decode(input,self.errors,decoding_table)[0]
-           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-UnicodeDecodeError: 'charmap' codec can't decode byte 0x88 in position 88: character maps to <undefined>
