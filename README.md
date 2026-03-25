@@ -2,6 +2,8 @@
 
 ![BLACKWALL Banner](docs/blackwall_banner.avif)
 
+> *"Wove the Blackwall into existence. Not a firewall. Not encryption. A boundary between civilization and digital wilderness."*
+
 > *"The Blackwall's task was to secure an area of cyberspace for human use while holding at bay the threat of the dangerous rogue AIs that were released decades earlier into the Net."*
 > — Cyberpunk 2077
 
@@ -72,9 +74,9 @@ On March 19, 2026, attackers compromised **Trivy** (a security scanner), used st
      ╚═════════════════════════╦═════════════════════════════════╝
                                ║
                 ╔══════════════╩══════════════╗
-                ║   BLACKWALL DASHBOARD (TUI)  ║
-                ║   5-page real-time display    ║
-                ║   Zero-flicker rendering      ║
+                ║   BLACKWALL WEB DASHBOARD    ║
+                ║   6-page real-time display    ║
+                ║   Auto-opens in Edge          ║
                 ╚═════════════════════════════╝
 ```
 
@@ -136,23 +138,24 @@ The modules that make BLACKWALL unique — purpose-built to detect attacks like 
 | **Dependency Auditor** | Full dependency tree mapping, transitive dependency risk scoring, package integrity verification against PyPI, abandoned package detection (>2yr), circular dependency detection, npm audit integration |
 | **Container Security** | Privileged container detection, dangerous capability flags, host mount scanning, crypto miner process detection, untrusted registry alerts, Docker Compose security scanning |
 
-### Dashboard
+### Web Dashboard
 
-5-page real-time TUI with zero-flicker rendering:
+6-page real-time web interface that auto-opens in Microsoft Edge on launch:
 
 | Page | Content |
 |------|---------|
-| **1: Overview** | Honeypot hits, recent alerts, banned IPs, network stats |
-| **2: Threat Intel** | Top countries, threat feeds, top attackers, system resources |
-| **3: Integrity** | ARP guard, file integrity, process monitor, system stats |
-| **4: Defense** | Threat scores, canary tokens, event log, bandwidth/registry |
-| **5: Supply Chain** | Guardian status, credential vault, dependency audit, containers |
-
-Auto-rotates every 15 seconds. Press `1-5` to jump to any page.
+| **Dashboard** | Honeypot hits, recent alerts, banned IPs, network stats overview |
+| **Honeypots** | Live honeypot activity, connection logs, captured credentials |
+| **Network** | Network traffic analysis, ARP guard, bandwidth, outbound connections |
+| **Threats** | Threat scores, top attackers, threat intel feeds, behavioral alerts |
+| **Supply Chain** | Guardian status, credential vault, dependency audit, container security |
+| **Settings** | Configuration, whitelist management, alert preferences, module toggles |
 
 ---
 
 ## Quick Start
+
+> **Python 3.12 is recommended.** Other 3.10+ versions may work but are not tested.
 
 ```bash
 # Clone
@@ -162,25 +165,25 @@ cd BLACKWALL
 # Install dependencies
 pip install -r requirements.txt
 
-# Run BLACKWALL
-python blackwall.py
+# Launch BLACKWALL (web dashboard opens in Edge automatically)
+py -3.12 launcher.py          # or: python launcher.py
 
-# Run with firewall hardening (requires Admin)
-python blackwall.py all
+# Launch with firewall hardening (requires Admin)
+py -3.12 launcher.py all
 
 # Generate security report
-python blackwall.py report
+py -3.12 launcher.py report
 ```
 
 ### Commands
 
 ```
-python blackwall.py              Start BLACKWALL monitoring
-python blackwall.py harden       Apply firewall hardening (Admin required)
-python blackwall.py antitrack    Apply anti-tracking rules (Admin required)
-python blackwall.py all          Everything: harden + antitrack + monitor
-python blackwall.py report       Generate HTML security report
-python blackwall.py help         Show help
+py -3.12 launcher.py              Start BLACKWALL monitoring + web dashboard
+py -3.12 launcher.py harden       Apply firewall hardening (Admin required)
+py -3.12 launcher.py antitrack    Apply anti-tracking rules (Admin required)
+py -3.12 launcher.py all          Everything: harden + antitrack + monitor
+py -3.12 launcher.py report       Generate HTML security report
+py -3.12 launcher.py help         Show help
 ```
 
 ---
@@ -219,7 +222,7 @@ Edit `config/config.json` to customize:
 
 ## Requirements
 
-- **Python** 3.10+
+- **Python** 3.12 recommended (3.10+ minimum)
 - **Windows** 10/11 (some monitors use Windows-specific APIs)
 - **Admin privileges** recommended for firewall rules and system monitoring
 - Optional: MaxMind GeoIP2 database for local geolocation
@@ -247,7 +250,7 @@ geoip2>=4.8.0         # GeoIP lookups (optional)
 
 4. **Supply chain modules** continuously audit your installed packages, monitor credential files, scan dependency trees, and watch Docker containers — catching the exact attack patterns used in real-world supply chain compromises.
 
-5. **Dashboard** shows everything in real-time across 5 pages. No web server, no external dependencies — pure terminal UI.
+5. **Web Dashboard** shows everything in real-time across 6 pages. Auto-opens in Edge on launch for a full browser-based monitoring experience.
 
 ---
 

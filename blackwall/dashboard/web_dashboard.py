@@ -4,6 +4,7 @@ Serves real-time JSON status from all BLACKWALL modules and a web UI.
 """
 
 import asyncio
+import ipaddress
 import json
 import logging
 import os
@@ -114,9 +115,13 @@ class WebDashboard:
                 if target is None:
                     return jsonify({"ok": False, "error": f"Honeypot '{name}' not found"}), 404
                 if enabled:
-                    target.start()
+                    def _start_hp():
+                        asyncio.run(target.start())
+                    threading.Thread(target=_start_hp, daemon=True).start()
                 else:
-                    target.stop()
+                    def _stop_hp():
+                        asyncio.run(target.stop())
+                    threading.Thread(target=_stop_hp, daemon=True).start()
                 return jsonify({"ok": True, "name": name, "enabled": enabled})
             except Exception as e:
                 return jsonify({"ok": False, "error": str(e)}), 500
@@ -126,7 +131,9 @@ class WebDashboard:
             try:
                 if not self.honeypot_mgr:
                     return jsonify({"ok": False, "error": "Honeypot manager not available"}), 503
-                threading.Thread(target=self.honeypot_mgr.start_all, daemon=True).start()
+                def _start():
+                    asyncio.run(self.honeypot_mgr.start_all())
+                threading.Thread(target=_start, daemon=True).start()
                 return jsonify({"ok": True, "message": "Starting all honeypots"})
             except Exception as e:
                 return jsonify({"ok": False, "error": str(e)}), 500
@@ -136,7 +143,9 @@ class WebDashboard:
             try:
                 if not self.honeypot_mgr:
                     return jsonify({"ok": False, "error": "Honeypot manager not available"}), 503
-                threading.Thread(target=self.honeypot_mgr.stop_all, daemon=True).start()
+                def _stop():
+                    asyncio.run(self.honeypot_mgr.stop_all())
+                threading.Thread(target=_stop, daemon=True).start()
                 return jsonify({"ok": True, "message": "Stopping all honeypots"})
             except Exception as e:
                 return jsonify({"ok": False, "error": str(e)}), 500
@@ -179,7 +188,19 @@ class WebDashboard:
                 ip = data.get("ip")
                 if not ip:
                     return jsonify({"ok": False, "error": "Missing 'ip'"}), 400
-                self.auto_ban.whitelist.append(ip)
+                # Parse to ip_network/ip_address to match whitelist type
+                try:
+                    entry = ipaddress.ip_network(ip, strict=False)
+                except ValueError:
+                    try:
+                        entry = ipaddress.ip_address(ip)
+                    except ValueError:
+                        return jsonify({"ok": False, "error": f"Invalid IP/CIDR: {ip}"}), 400
+                # Avoid duplicates
+                for existing in self.auto_ban.whitelist:
+                    if str(existing) == str(entry):
+                        return jsonify({"ok": True, "message": "Already in whitelist"})
+                self.auto_ban.whitelist.append(entry)
                 return jsonify({"ok": True})
             except Exception as e:
                 return jsonify({"ok": False, "error": str(e)}), 500
@@ -193,9 +214,14 @@ class WebDashboard:
                 ip = data.get("ip")
                 if not ip:
                     return jsonify({"ok": False, "error": "Missing 'ip'"}), 400
-                try:
-                    self.auto_ban.whitelist.remove(ip)
-                except ValueError:
+                # Find and remove by string comparison (whitelist has ip_network objects)
+                removed = False
+                for i, entry in enumerate(self.auto_ban.whitelist):
+                    if str(entry) == ip:
+                        self.auto_ban.whitelist.pop(i)
+                        removed = True
+                        break
+                if not removed:
                     return jsonify({"ok": False, "error": f"'{ip}' not in whitelist"}), 404
                 return jsonify({"ok": True})
             except Exception as e:
@@ -263,6 +289,7 @@ class WebDashboard:
             "dependencies": self._get_dependencies(),
             "containers": self._get_containers(),
             "totals": self._get_totals(),
+            "config": self._get_config(),
         }
 
     # -- honeypots -----------------------------------------------------
@@ -273,14 +300,62 @@ class WebDashboard:
                 return []
             stats = self.honeypot_mgr.get_stats()
             by_type = stats.get("by_type", {})
-            result = []
+            last_event = stats.get("last_event")
+
+            # Build set of running honeypot names for status lookup
+            running_names = set()
+            running_ports = {}
             for hp in self.honeypot_mgr.honeypots:
+                running_names.add(hp.name.lower())
+                if hp.port:
+                    running_ports[hp.name.lower()] = hp.port
+
+            # Build honeypot list from config so they always appear
+            # even before start_all() populates self.honeypot_mgr.honeypots
+            hp_config = self.honeypot_mgr.config.get("honeypots", {})
+            result = []
+            seen = set()
+
+            for name, cfg in hp_config.items():
+                if name == "catchall":
+                    continue  # skip catchall in the grid (many ports)
+                port = cfg.get("port", 0)
+                enabled = cfg.get("enabled", False)
+                is_running = name.lower() in running_names
+                status = "ON" if is_running else ("OFF" if enabled else "DISABLED")
+                hits = by_type.get(name, 0)
+                # Determine last connection time for this honeypot type
+                last_conn = "--"
+                if last_event and last_event.get("honeypot", "").lower() == name.lower():
+                    ts = last_event.get("timestamp", "")
+                    try:
+                        last_conn = datetime.fromisoformat(ts).strftime("%H:%M:%S")
+                    except Exception:
+                        last_conn = str(ts)[:8] if ts else "--"
+                elif hits > 0:
+                    last_conn = "Active"
+
                 result.append({
-                    "name": hp.name.upper(),
-                    "port": hp.port,
-                    "hits": by_type.get(hp.name, 0),
-                    "status": "ON",
+                    "name": name.upper(),
+                    "port": running_ports.get(name.lower(), port),
+                    "hits": hits,
+                    "status": status,
+                    "last_connection": last_conn,
                 })
+                seen.add(name.lower())
+
+            # Also add any running honeypots not in config (e.g. catchall)
+            for hp in self.honeypot_mgr.honeypots:
+                if hp.name.lower() not in seen and hp.name.lower() != "catchall":
+                    hits = by_type.get(hp.name, 0)
+                    result.append({
+                        "name": hp.name.upper(),
+                        "port": hp.port,
+                        "hits": hits,
+                        "status": "ON",
+                        "last_connection": "Active" if hits > 0 else "--",
+                    })
+
             return result
         except Exception:
             return []
@@ -714,6 +789,22 @@ class WebDashboard:
         except Exception:
             return {"docker_available": False, "running": 0,
                     "privileged": 0, "crypto_miners": 0}
+
+    # -- config --------------------------------------------------------
+
+    def _get_config(self) -> dict:
+        """Return current config for the Settings page."""
+        try:
+            config_path = os.path.join("config", "config.json")
+            if os.path.exists(config_path):
+                with open(config_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            # Fallback: build from honeypot manager config
+            if self.honeypot_mgr:
+                return self.honeypot_mgr.config
+            return {}
+        except Exception:
+            return {}
 
     # -- totals --------------------------------------------------------
 

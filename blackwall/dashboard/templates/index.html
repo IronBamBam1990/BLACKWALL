@@ -623,10 +623,13 @@ function renderHoneypots(d){
   for(var i=0;i<hps.length;i++){
     var h=hps[i];
     var isOn = h.status==='ON';
+    var statusBadge = isOn ? '<span class="badge b-on">ON</span>' :
+      (h.status==='OFF' ? '<span class="badge b-off">OFF</span>' :
+       '<span class="badge b-info">DISABLED</span>');
     html+='<tr>'+
       '<td style="font-weight:bold;color:var(--cyan)">'+esc(h.name)+'</td>'+
       '<td>'+esc(h.port)+'</td>'+
-      '<td><label class="toggle"><input type="checkbox" '+(isOn?'checked':'')+' onchange="toggleHP(\''+esc(h.name).toLowerCase()+'\',this.checked)"><span class="toggle-track"></span><span class="toggle-thumb"></span></label></td>'+
+      '<td><label class="toggle"><input type="checkbox" '+(isOn?'checked':'')+' onchange="toggleHP(\''+esc(h.name).toLowerCase()+'\',this.checked)"><span class="toggle-track"></span><span class="toggle-thumb"></span></label> '+statusBadge+'</td>'+
       '<td>'+esc(h.hits||0)+'</td>'+
       '<td style="color:var(--dim)">'+esc(h.last_connection||'--')+'</td>'+
       '</tr>';
@@ -867,8 +870,9 @@ function renderSettings(d){
   if(!d) return;
   var hps = d.honeypots||[];
   var whitelist = d.whitelist||[];
+  var cfg = d.config||{};
 
-  // port config
+  // port config - use honeypots list from API (always populated from config)
   var phtml='';
   for(var i=0;i<hps.length;i++){
     var h=hps[i];
@@ -877,6 +881,14 @@ function renderSettings(d){
   }
   if(!hps.length) phtml='<div style="color:var(--dim)">No honeypots configured</div>';
   $('cfg-ports').innerHTML = phtml;
+
+  // Populate config values from backend config
+  var alertsCfg = cfg.alerts||{};
+  var monCfg = cfg.monitor||{};
+  $('cfg-sound').checked = alertsCfg.sound_enabled !== false;
+  $('cfg-toast').checked = alertsCfg.toast_enabled !== false;
+  $('cfg-autoban').checked = monCfg.auto_ban_enabled !== false;
+  if(monCfg.brute_force_threshold) $('cfg-threshold').value = monCfg.brute_force_threshold;
 
   // whitelist
   var whtml='';
