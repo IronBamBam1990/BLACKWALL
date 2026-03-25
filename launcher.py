@@ -89,8 +89,9 @@ def main():
     from blackwall.monitor.canary_tokens import CanaryTokens
     from blackwall.monitor.anti_ddos import AntiDDoS
 
-    # RAM checker
+    # RAM checker + TeamPCP detector
     from blackwall.monitor.ram_checker import RAMChecker
+    from blackwall.monitor.teampcp_detector import TeamPCPDetector
 
     # Supply chain modules
     from blackwall.supply_chain.guardian import SupplyChainGuardian
@@ -126,8 +127,9 @@ def main():
     canary_tokens = CanaryTokens(config=config.get("canary_tokens", {}), log_dir=log_dir)
     anti_ddos = AntiDDoS(config=config.get("anti_ddos", {}), log_dir=log_dir, auto_ban=auto_ban)
 
-    # ---- Instantiate RAM checker ----
+    # ---- Instantiate RAM checker + TeamPCP detector ----
     ram_checker = RAMChecker(config=config.get("ram_checker", {}), log_dir=log_dir)
+    teampcp_detector = TeamPCPDetector(config=config.get("teampcp_detector", {}), log_dir=log_dir)
 
     # ---- Instantiate supply chain modules ----
     supply_chain = SupplyChainGuardian(
@@ -276,6 +278,7 @@ def main():
             ("CanaryTokens", canary_tokens, "check"),
             ("AntiDDoS", anti_ddos, "scan"),
             ("RAMChecker", ram_checker, "scan"),
+            ("TeamPCP", teampcp_detector, "scan"),
         ]
         print(f"[BLACKWALL] Light monitors started ({len(light_modules)} modules)")
         while True:
@@ -314,6 +317,7 @@ def main():
         dependency_auditor=dependency_auditor,
         container_monitor=container_monitor,
         ram_checker=ram_checker,
+        teampcp_detector=teampcp_detector,
     )
 
     flask_app = dashboard._create_app()

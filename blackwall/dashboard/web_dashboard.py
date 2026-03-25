@@ -47,6 +47,7 @@ class WebDashboard:
         dependency_auditor=None,
         container_monitor=None,
         ram_checker=None,
+        teampcp_detector=None,
     ):
         self.honeypot_mgr = honeypot_manager
         self.net_monitor = network_monitor
@@ -70,6 +71,7 @@ class WebDashboard:
         self.dependency_auditor = dependency_auditor
         self.container_monitor = container_monitor
         self.ram_checker = ram_checker
+        self.teampcp_detector = teampcp_detector
 
         self._app = None
         self._thread = None
@@ -291,6 +293,7 @@ class WebDashboard:
             "dependencies": self._get_dependencies(),
             "containers": self._get_containers(),
             "ram_checker": self._get_ram_checker(),
+            "teampcp": self._get_teampcp(),
             "totals": self._get_totals(),
             "config": self._get_config(),
         }
@@ -887,6 +890,34 @@ class WebDashboard:
             return {}
         except Exception:
             return {}
+
+    # -- teampcp detector ------------------------------------------------
+
+    def _get_teampcp(self) -> dict:
+        try:
+            if not self.teampcp_detector:
+                return {"artifacts_found": 0, "findings": [], "last_scan": "--"}
+            s = self.teampcp_detector.get_stats()
+            findings = s.get("findings", [])[:20]
+            last = s.get("last_scan", "--")
+            try:
+                last = datetime.fromisoformat(last).strftime("%H:%M:%S")
+            except Exception:
+                pass
+            return {
+                "artifacts_found": s.get("artifacts_found", 0),
+                "persistence_found": s.get("persistence_found", 0),
+                "exfil_staging_found": s.get("exfil_staging_found", 0),
+                "malicious_pth_found": s.get("malicious_pth_found", 0),
+                "c2_indicators": s.get("c2_indicators", 0),
+                "compromised_packages": s.get("compromised_packages", 0),
+                "k8s_indicators": s.get("k8s_indicators", 0),
+                "last_scan": last,
+                "alerts": s.get("alerts", 0),
+                "findings": findings,
+            }
+        except Exception:
+            return {"artifacts_found": 0, "findings": [], "last_scan": "--"}
 
     # -- totals --------------------------------------------------------
 
