@@ -1,0 +1,120 @@
+{
+    "honeypots": {
+        "ssh": {"enabled": true, "port": 2222},
+        "http": {"enabled": true, "port": 8080},
+        "ftp": {"enabled": true, "port": 2121},
+        "rdp": {"enabled": true, "port": 3390},
+        "smb": {"enabled": true, "port": 4450},
+        "telnet": {"enabled": true, "port": 2323},
+        "mysql": {"enabled": true, "port": 3307},
+        "smtp": {"enabled": true, "port": 2525},
+        "dns": {"enabled": true, "port": 5354},
+        "catchall": {"enabled": true}
+    },
+    "monitor": {
+        "port_scan_threshold": 5,
+        "port_scan_window_seconds": 10,
+        "brute_force_threshold": 3,
+        "brute_force_window_seconds": 60,
+        "auto_ban_enabled": true
+    },
+    "whitelist": [
+        "127.0.0.1",
+        "192.168.0.0/24",
+        "192.168.1.0/24",
+        "10.0.0.0/8"
+    ],
+    "geoip": {
+        "enabled": true,
+        "database_path": ""
+    },
+    "threat_intel": {
+        "enabled": true,
+        "abuseipdb_api_key": "",
+        "refresh_hours": 6
+    },
+    "arp_monitor": {
+        "enabled": true,
+        "check_interval_seconds": 15
+    },
+    "process_monitor": {
+        "enabled": true,
+        "check_interval_seconds": 8,
+        "whitelist_processes": []
+    },
+    "file_integrity": {
+        "enabled": true,
+        "check_interval_seconds": 120,
+        "baseline_file": "config/file_integrity_baseline.json"
+    },
+    "outbound_analyzer": {
+        "enabled": true,
+        "check_interval_seconds": 15
+    },
+    "registry_monitor": {
+        "enabled": true,
+        "check_interval_seconds": 60
+    },
+    "bandwidth_monitor": {
+        "enabled": true,
+        "check_interval_seconds": 10,
+        "anomaly_multiplier": 5.0,
+        "window_samples": 60
+    },
+    "alerts": {
+        "sound_enabled": false,
+        "toast_enabled": false,
+        "webhook_url": "",
+        "min_severity_sound": "HIGH",
+        "min_severity_toast": "MEDIUM",
+        "cooldown_seconds": 10
+    },
+    "canary_tokens": {
+        "enabled": true,
+        "check_interval_seconds": 10
+    },
+    "eventlog_monitor": {
+        "enabled": true,
+        "check_interval_seconds": 30
+    },
+    "usb_monitor": {
+        "enabled": true,
+        "check_interval_seconds": 15
+    },
+    "anti_keylogger": {
+        "enabled": true,
+        "check_interval_seconds": 15
+    },
+    "privacy_guard": {
+        "enabled": true,
+        "check_interval_seconds": 30
+    },
+    "browser_guard": {
+        "enabled": true,
+        "check_interval_seconds": 10
+    },
+    "anti_ddos": {
+        "enabled": true,
+        "check_interval_seconds": 5
+    },
+    "rate_limiter": {
+        "max_connections_per_ip": 10,
+        "window_seconds": 60,
+        "tarpit_enabled": true,
+        "tarpit_delay_seconds": 5,
+        "tarpit_after_hits": 3
+    },
+    "encryption": {
+        "enabled": false,
+        "key_file": "config/log_encryption.key"
+    },
+    "logging": {
+        "log_dir": "logs",
+        "max_log_size_mb": 100,
+        "rotation_count": 5
+    },
+    "dashboard": {
+        "refresh_interval_seconds": 3,
+        "page_cycle_seconds": 15
+    }
+}

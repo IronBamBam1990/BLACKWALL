@@ -1,0 +1,615 @@
+"""
+===============================================================================
+  ████████╗██╗  ██╗███████╗    ██████╗ ██╗      █████╗  ██████╗██╗  ██╗
+  ╚══██╔══╝██║  ██║██╔════╝    ██╔══██╗██║     ██╔══██╗██╔════╝██║ ██╔╝
+     ██║   ███████║█████╗      ██████╔╝██║     ███████║██║     █████╔╝
+     ██║   ██╔══██║██╔══╝      ██╔══██╗██║     ██╔══██║██║     ██╔═██╗
+     ██║   ██║  ██║███████╗    ██████╔╝███████╗██║  ██║╚██████╗██║  ██╗
+     ╚═╝   ╚═╝  ╚═╝╚══════╝    ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝
+  ██╗    ██╗ █████╗ ██╗     ██╗
+  ██║    ██║██╔══██╗██║     ██║
+  ██║ █╗ ██║███████║██║     ██║
+  ██║███╗██║██╔══██║██║     ██║
+  ╚███╔███╔╝██║  ██║███████╗███████╗
+   ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚══════╝
+
+  THE BLACKWALL  v4.0  -  Last Line of Defense
+===============================================================================
+"""
+
+import asyncio
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+# ---------------------------------------------------------------------------
+# Path setup - ensure blackwall/ subpackage is importable
+# ---------------------------------------------------------------------------
+BLACKWALL_DIR = Path(__file__).parent
+sys.path.insert(0, str(BLACKWALL_DIR))
+sys.path.insert(0, str(BLACKWALL_DIR / "blackwall"))
+
+# ---------------------------------------------------------------------------
+# Honeypots
+# ---------------------------------------------------------------------------
+from blackwall.honeypots.honeypot_manager import HoneypotManager
+
+# ---------------------------------------------------------------------------
+# Monitors - core
+# ---------------------------------------------------------------------------
+from blackwall.monitor.network_monitor import NetworkMonitor
+from blackwall.monitor.intrusion_detector import IntrusionDetector
+from blackwall.monitor.auto_ban import AutoBan
+from blackwall.monitor.geoip import GeoIPLookup
+from blackwall.monitor.threat_intel import ThreatIntelChecker
+from blackwall.monitor.arp_monitor import ARPMonitor
+from blackwall.monitor.process_monitor import ProcessMonitor
+from blackwall.monitor.file_integrity import FileIntegrityMonitor
+from blackwall.monitor.alerting import AlertManager
+from blackwall.monitor.outbound_analyzer import OutboundAnalyzer
+from blackwall.monitor.registry_monitor import RegistryMonitor
+from blackwall.monitor.bandwidth_monitor import BandwidthMonitor
+from blackwall.monitor.canary_tokens import CanaryTokens
+from blackwall.monitor.eventlog_monitor import EventLogMonitor
+from blackwall.monitor.usb_monitor import USBMonitor
+from blackwall.monitor.threat_scorer import ThreatScorer
+from blackwall.monitor.rate_limiter import RateLimiter
+from blackwall.monitor.behavior_engine import BehaviorEngine
+from blackwall.monitor.safe_loop import safe_monitor_loop
+
+# ---------------------------------------------------------------------------
+# Monitors - defense
+# ---------------------------------------------------------------------------
+from blackwall.monitor.anti_ddos import AntiDDoS
+from blackwall.monitor.anti_keylogger import AntiKeylogger
+from blackwall.monitor.privacy_guard import PrivacyGuard
+from blackwall.monitor.browser_guard import BrowserGuard
+
+# ---------------------------------------------------------------------------
+# Supply chain modules
+# ---------------------------------------------------------------------------
+from blackwall.supply_chain.guardian import SupplyChainGuardian
+from blackwall.supply_chain.credential_monitor import CredentialVaultMonitor
+from blackwall.supply_chain.dependency_auditor import DependencyAuditor
+from blackwall.supply_chain.container_monitor import ContainerSecurityMonitor
+
+# ---------------------------------------------------------------------------
+# Utils & Dashboard
+# ---------------------------------------------------------------------------
+from blackwall.utils.crypto import LogEncryptor
+from blackwall.dashboard.dashboard import SecurityDashboard
+
+# Alias for BLACKWALL branding - dashboard will be upgraded separately
+BlackwallDashboard = SecurityDashboard
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Banner
+# ═══════════════════════════════════════════════════════════════════════════
+
+BANNER = r"""
+ ╔══════════════════════════════════════════════════════════════════════════╗
+ ║                                                                        ║
+ ║   ██████╗ ██╗      █████╗  ██████╗██╗  ██╗██╗    ██╗ █████╗ ██╗     ██╗║
+ ║   ██╔══██╗██║     ██╔══██╗██╔════╝██║ ██╔╝██║    ██║██╔══██╗██║     ██║║
+ ║   ██████╔╝██║     ███████║██║     █████╔╝ ██║ █╗ ██║███████║██║     ██║║
+ ║   ██╔══██╗██║     ██╔══██║██║     ██╔═██╗ ██║███╗██║██╔══██║██║     ██║║
+ ║   ██████╔╝███████╗██║  ██║╚██████╗██║  ██╗╚███╔███╔╝██║  ██║███████╗██║║
+ ║   ╚═════╝ ╚══════╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝ ╚══╝╚══╝ ╚═╝  ╚═╝╚══════╝╚═╝║
+ ║                                                                        ║
+ ║           THE  BLACKWALL  -  Last  Line  of  Defense                   ║
+ ║                          Version 4.0                                   ║
+ ║                                                                        ║
+ ╠════════════════════════════════════════════════════════════════════════╣
+ ║                                                                        ║
+ ║   [■] 9 Honeypots + Catch-All ............... 68 ports armed           ║
+ ║   [■] 24 Security Monitors .................. Behavioral Analysis      ║
+ ║   [■] Supply Chain Guardian ................. Package Integrity        ║
+ ║   [■] Credential Vault ...................... DPAPI Sealed             ║
+ ║   [■] Dependency Auditor .................... Typosquat Detection      ║
+ ║   [■] Container Security .................... Perimeter Locked         ║
+ ║   [■] Anti-DDoS + Anti-Keylogger ........... Active Shielding         ║
+ ║   [■] Privacy Guard + Browser Guard ......... Tracking Blocked        ║
+ ║                                                                        ║
+ ║   "Beyond the Blackwall, only rogue code survives."                    ║
+ ║                                                                        ║
+ ╚══════════════════════════════════════════════════════════════════════════╝
+"""
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Startup messages
+# ═══════════════════════════════════════════════════════════════════════════
+
+STARTUP_SEQUENCE = [
+    ("[BLACKWALL] Initializing defensive barrier...", 0.08),
+    ("[BLACKWALL] Loading threat intelligence feeds...", 0.05),
+    ("[BLACKWALL] Deploying honeypot grid... 68 ports armed", 0.06),
+    ("[BLACKWALL] IDS + Auto-Ban + Behavioral Engine online", 0.04),
+    ("[BLACKWALL] ARP Guard + Process Monitor + File Integrity active", 0.04),
+    ("[BLACKWALL] Registry Monitor + USB Guard + Event Log watcher ready", 0.04),
+    ("[BLACKWALL] Anti-DDoS shield raised", 0.03),
+    ("[BLACKWALL] Anti-Keylogger hooks installed", 0.03),
+    ("[BLACKWALL] Privacy Guard engaged - DNS leak protection active", 0.03),
+    ("[BLACKWALL] Browser Guard locked - fingerprint spoofing enabled", 0.03),
+    ("[BLACKWALL] Supply Chain Guardian online", 0.06),
+    ("[BLACKWALL] Credential Vault sealed", 0.05),
+    ("[BLACKWALL] Dependency tree scanning...", 0.06),
+    ("[BLACKWALL] Container perimeter locked", 0.05),
+    ("[BLACKWALL] Canary tokens deploying...", 0.04),
+    ("[BLACKWALL] Dashboard rendering engine ready", 0.03),
+    ("", 0.1),
+    ("[BLACKWALL] ══════════════════════════════════════════", 0.02),
+    ("[BLACKWALL]  The wall is up. Nothing gets through.", 0.02),
+    ("[BLACKWALL] ══════════════════════════════════════════", 0.02),
+    ("", 0.0),
+]
+
+
+def _print_startup():
+    """Print startup sequence with a brief delay per line for visual effect."""
+    for msg, delay in STARTUP_SEQUENCE:
+        if msg:
+            print(msg)
+        else:
+            print()
+        if delay > 0:
+            time.sleep(delay)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Config
+# ═══════════════════════════════════════════════════════════════════════════
+
+def load_config() -> dict:
+    """Load configuration from config/config.json."""
+    p = BLACKWALL_DIR / "config" / "config.json"
+    if p.exists():
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"[BLACKWALL] WARNING: Failed to load config: {e}")
+            print("[BLACKWALL] Using default configuration.")
+    return {}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Main
+# ═══════════════════════════════════════════════════════════════════════════
+
+async def main():
+    """Main async entry point - starts all BLACKWALL subsystems."""
+
+    print(BANNER)
+    config = load_config()
+    log_dir = str(BLACKWALL_DIR / config.get("logging", {}).get("log_dir", "logs"))
+
+    _print_startup()
+
+    # ===================================================================
+    # SHARED COMPONENTS
+    # ===================================================================
+    geoip = GeoIPLookup(config.get("geoip", {}))
+    threat_intel = ThreatIntelChecker(config.get("threat_intel", {}), log_dir=log_dir)
+    alert_mgr = AlertManager(config.get("alerts", {}), log_dir=log_dir)
+    threat_scorer = ThreatScorer()
+    rate_limiter = RateLimiter(config.get("rate_limiter", {}))
+    behavior = BehaviorEngine(config.get("behavior_engine", {}))
+
+    # ===================================================================
+    # HONEYPOTS
+    # ===================================================================
+    honeypot_mgr = HoneypotManager(
+        config, log_dir=log_dir, geoip=geoip, threat_intel=threat_intel
+    )
+
+    # ===================================================================
+    # MONITORS - Core
+    # ===================================================================
+    net_monitor = NetworkMonitor(config, log_dir=log_dir)
+    ids = IntrusionDetector(config, log_dir=log_dir)
+    auto_ban = AutoBan(config, log_dir=log_dir)
+    arp_monitor = ARPMonitor(config.get("arp_monitor", {}), log_dir=log_dir)
+    proc_monitor = ProcessMonitor(config.get("process_monitor", {}), log_dir=log_dir)
+    fim = FileIntegrityMonitor(config.get("file_integrity", {}), log_dir=log_dir)
+    outbound = OutboundAnalyzer(config.get("outbound_analyzer", {}), log_dir=log_dir)
+    reg_monitor = RegistryMonitor(config.get("registry_monitor", {}), log_dir=log_dir)
+    bw_monitor = BandwidthMonitor(config.get("bandwidth_monitor", {}), log_dir=log_dir)
+    canary = CanaryTokens(config.get("canary_tokens", {}), log_dir=log_dir)
+    eventlog = EventLogMonitor(config.get("eventlog_monitor", {}), log_dir=log_dir)
+    usb_mon = USBMonitor(config.get("usb_monitor", {}), log_dir=log_dir)
+
+    # ===================================================================
+    # MONITORS - Defense
+    # ===================================================================
+    anti_ddos = AntiDDoS(config.get("anti_ddos", {}), log_dir=log_dir, auto_ban=auto_ban)
+    anti_keylogger = AntiKeylogger(config.get("anti_keylogger", {}), log_dir=log_dir)
+    privacy_guard = PrivacyGuard(config.get("privacy_guard", {}), log_dir=log_dir)
+    browser_guard = BrowserGuard(config.get("browser_guard", {}), log_dir=log_dir)
+
+    # ===================================================================
+    # SUPPLY CHAIN MODULES
+    # ===================================================================
+
+    # Shared async alert callback for supply chain → alert_mgr + auto_ban
+    async def _supply_chain_alert(event):
+        """Route supply chain alerts to alert manager and auto-ban for critical."""
+        alert_mgr.handle_alert({
+            "type": "SUPPLY_CHAIN_" + event.get("type", "UNKNOWN"),
+            "severity": event.get("severity", "HIGH"),
+            "description": event.get("description", str(event)),
+            "source": "SupplyChainGuardian",
+            "timestamp": event.get("timestamp", ""),
+        })
+        if event.get("severity") == "CRITICAL":
+            src_ip = event.get("source_ip", "")
+            if src_ip:
+                auto_ban.ban_ip(
+                    src_ip,
+                    reason=f"Supply Chain: {event.get('type', 'unknown')}",
+                    severity="CRITICAL",
+                )
+
+    async def _credential_alert(event):
+        """Route credential monitor alerts to alert manager."""
+        alert_mgr.handle_alert({
+            "type": "CREDENTIAL_" + event.get("type", "ACCESS"),
+            "severity": event.get("severity", "HIGH"),
+            "description": event.get("description", str(event)),
+            "source": "CredentialVaultMonitor",
+            "timestamp": event.get("timestamp", ""),
+        })
+
+    async def _dependency_alert(event):
+        """Route dependency auditor alerts to alert manager."""
+        alert_mgr.handle_alert({
+            "type": "DEPENDENCY_" + event.get("type", "RISK"),
+            "severity": event.get("severity", "MEDIUM"),
+            "description": event.get("description", str(event)),
+            "source": "DependencyAuditor",
+            "timestamp": event.get("timestamp", ""),
+        })
+
+    async def _container_alert(event):
+        """Route container monitor alerts to alert manager and auto-ban for critical."""
+        alert_mgr.handle_alert({
+            "type": "CONTAINER_" + event.get("type", "THREAT"),
+            "severity": event.get("severity", "HIGH"),
+            "description": event.get("description", str(event)),
+            "source": "ContainerSecurityMonitor",
+            "timestamp": event.get("timestamp", ""),
+        })
+        if event.get("severity") == "CRITICAL":
+            src_ip = event.get("source_ip", "")
+            if src_ip:
+                auto_ban.ban_ip(
+                    src_ip,
+                    reason=f"Container: {event.get('type', 'unknown')}",
+                    severity="CRITICAL",
+                )
+
+    supply_chain = SupplyChainGuardian(
+        config=config.get("supply_chain", {}),
+        alert_callback=_supply_chain_alert,
+        log_dir=log_dir,
+    )
+
+    credential_monitor = CredentialVaultMonitor(
+        config=config.get("credential_monitor", {}),
+        alert_callback=_credential_alert,
+        log_dir=log_dir,
+    )
+
+    dependency_auditor = DependencyAuditor(
+        alert_callback=_dependency_alert,
+        log_dir=log_dir,
+    )
+
+    container_monitor = ContainerSecurityMonitor(
+        alert_callback=_container_alert,
+        config=config.get("container_monitor", {}),
+        log_dir=log_dir,
+    )
+
+    # ===================================================================
+    # WIRING - Event Callbacks
+    # ===================================================================
+
+    def on_honeypot_event(event):
+        """Central handler for honeypot events - IDS, auto-ban, scoring, behavior."""
+        attack = ids.analyze_honeypot_event(event)
+        auto_ban.process_honeypot_event(event)
+        threat_scorer.process_honeypot_event(event)
+
+        # Behavioral analysis - detects unknown attacks by behavior patterns
+        behavior_alerts = behavior.process_event(event)
+        for ba in behavior_alerts:
+            if ba.get("severity") in ("CRITICAL", "HIGH"):
+                auto_ban.ban_ip(
+                    ba.get("source_ip", ""),
+                    reason=f"Behavior: {ba.get('type', 'unknown')}",
+                    severity=ba.get("severity", "HIGH"),
+                )
+
+        alert_mgr.handle_alert({
+            "type": event.get("honeypot", "?").upper() + "_HIT",
+            "severity": "HIGH" if attack else "MEDIUM",
+            "source_ip": event.get("source_ip", ""),
+            "description": f"Honeypot: {event.get('honeypot', '?')} from {event.get('source_ip', '?')}",
+            "timestamp": event.get("timestamp", ""),
+        })
+
+        ti = event.get("threat_intel", {})
+        if ti.get("threat"):
+            sources = ti.get("sources", [])
+            feed = sources[0].get("feed", "?") if sources else "unknown"
+            auto_ban.ban_ip(
+                event.get("source_ip", ""),
+                reason=f"Threat Intel: {feed}",
+                severity="CRITICAL",
+            )
+
+    honeypot_mgr.on_alert(on_honeypot_event)
+
+    def on_attack(a):
+        """IDS attack callback - auto-ban + alert + scoring."""
+        auto_ban.process_attack(a)
+        alert_mgr.handle_alert(a)
+        threat_scorer.process_attack(a)
+
+    ids.on_attack(on_attack)
+
+    def on_net_alert(a):
+        """Network monitor alert callback."""
+        if a.get("type") == "PORT_SCAN_DETECTED":
+            auto_ban.process_port_scan(a.get("source_ip", ""))
+        alert_mgr.handle_alert(a)
+
+    net_monitor.on_alert(on_net_alert)
+
+    # Wire all monitors to alert manager
+    arp_monitor.on_alert(lambda a: alert_mgr.handle_alert(a))
+    proc_monitor.on_alert(lambda a: alert_mgr.handle_alert(a))
+    fim.on_alert(lambda a: alert_mgr.handle_alert(a))
+    outbound.on_alert(lambda a: alert_mgr.handle_alert(a))
+    behavior.on_alert(lambda a: alert_mgr.handle_alert(a))
+    anti_ddos.on_alert(lambda a: alert_mgr.handle_alert(a))
+    anti_keylogger.on_alert(lambda a: alert_mgr.handle_alert(a))
+    privacy_guard.on_alert(lambda a: alert_mgr.handle_alert(a))
+    browser_guard.on_alert(lambda a: alert_mgr.handle_alert(a))
+    reg_monitor.on_alert(lambda a: alert_mgr.handle_alert(a))
+    bw_monitor.on_alert(lambda a: alert_mgr.handle_alert(a))
+    canary.on_alert(lambda a: alert_mgr.handle_alert(a))
+    eventlog.on_alert(lambda a: alert_mgr.handle_alert(a))
+    usb_mon.on_alert(lambda a: alert_mgr.handle_alert(a))
+
+    # ===================================================================
+    # DASHBOARD
+    # ===================================================================
+    dashboard = BlackwallDashboard(
+        honeypot_manager=honeypot_mgr,
+        network_monitor=net_monitor,
+        intrusion_detector=ids,
+        auto_ban=auto_ban,
+        geoip=geoip,
+        threat_intel=threat_intel,
+        arp_monitor=arp_monitor,
+        process_monitor=proc_monitor,
+        file_integrity=fim,
+        alert_manager=alert_mgr,
+        threat_scorer=threat_scorer,
+        canary_tokens=canary,
+        usb_monitor=usb_mon,
+        eventlog_monitor=eventlog,
+        bandwidth_monitor=bw_monitor,
+        outbound_analyzer=outbound,
+        registry_monitor=reg_monitor,
+    )
+
+    # Attach supply chain modules to dashboard for display
+    # (will be natively supported once dashboard upgrade completes)
+    dashboard.supply_chain = supply_chain
+    dashboard.credential_monitor = credential_monitor
+    dashboard.dependency_auditor = dependency_auditor
+    dashboard.container_monitor = container_monitor
+
+    refresh = config.get("dashboard", {}).get("refresh_interval_seconds", 3)
+
+    # ===================================================================
+    # LAUNCH ALL TASKS
+    # ===================================================================
+    print("\n[BLACKWALL] All systems nominal. Ctrl+C to disengage.\n")
+
+    try:
+        await asyncio.gather(
+            # --- Honeypots (async, lightweight) ---
+            honeypot_mgr.start_all(),
+
+            # --- Lightweight async monitors ---
+            net_monitor.monitor_loop(),
+            threat_intel.refresh_loop(),
+            proc_monitor.monitor_loop(),
+            fim.monitor_loop(),
+            outbound.monitor_loop(),
+            bw_monitor.monitor_loop(),
+            canary.monitor_loop(),
+            anti_ddos.monitor_loop(),
+
+            # --- Heavy monitors (subprocess/PowerShell - safe_loop protection) ---
+            safe_monitor_loop(arp_monitor, label="ARP"),
+            safe_monitor_loop(reg_monitor, label="Registry"),
+            safe_monitor_loop(eventlog, label="EventLog"),
+            safe_monitor_loop(usb_mon, label="USB"),
+            safe_monitor_loop(anti_keylogger, label="AntiKeylogger"),
+            safe_monitor_loop(privacy_guard, label="PrivacyGuard"),
+            safe_monitor_loop(browser_guard, label="BrowserGuard"),
+
+            # --- Supply Chain modules ---
+            supply_chain.start(),
+            credential_monitor.start(),
+            dependency_auditor.start(),
+            container_monitor.start(),
+
+            # --- Dashboard ---
+            dashboard.run(refresh_interval=refresh),
+        )
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        pass
+    except Exception as e:
+        print(f"\n[BLACKWALL] CRITICAL ERROR: {e}")
+    finally:
+        print("\n[BLACKWALL] Disengaging defensive systems...")
+
+        # --- Generate final report ---
+        try:
+            from blackwall.utils.report_generator import generate_report
+            rp = generate_report(
+                honeypot_manager=honeypot_mgr,
+                auto_ban=auto_ban,
+                intrusion_detector=ids,
+                threat_intel=threat_intel,
+                network_monitor=net_monitor,
+                arp_monitor=arp_monitor,
+                process_monitor=proc_monitor,
+                file_integrity=fim,
+                registry_monitor=reg_monitor,
+                bandwidth_monitor=bw_monitor,
+                outbound_analyzer=outbound,
+                output_dir=str(BLACKWALL_DIR / "reports"),
+            )
+            print(f"[BLACKWALL] Final report: {rp}")
+        except Exception:
+            pass
+
+        # --- Stop all modules ---
+        stop_coros = [
+            # Core monitors
+            honeypot_mgr.stop_all(),
+            net_monitor.stop(),
+            threat_intel.stop(),
+            arp_monitor.stop(),
+            proc_monitor.stop(),
+            fim.stop(),
+            outbound.stop(),
+            reg_monitor.stop(),
+            bw_monitor.stop(),
+            canary.stop(),
+            eventlog.stop(),
+            usb_mon.stop(),
+            # Defense monitors
+            anti_ddos.stop(),
+            anti_keylogger.stop(),
+            privacy_guard.stop(),
+            browser_guard.stop(),
+            # Supply chain modules
+            supply_chain.stop(),
+            credential_monitor.stop(),
+            dependency_auditor.stop(),
+            container_monitor.stop(),
+        ]
+
+        for coro in stop_coros:
+            try:
+                await coro
+            except Exception:
+                pass
+
+        dashboard.stop()
+        geoip.close()
+
+        print("[BLACKWALL] All systems offline. The wall sleeps.")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CLI Commands
+# ═══════════════════════════════════════════════════════════════════════════
+
+def run_firewall_hardening():
+    """Run Windows Firewall hardening script (requires Admin)."""
+    script = BLACKWALL_DIR / "config" / "harden_firewall.ps1"
+    if not script.exists():
+        print(f"[BLACKWALL] ERROR: Firewall script not found: {script}")
+        return
+    os.system(f'powershell -ExecutionPolicy Bypass -File "{script}"')
+
+
+def run_anti_tracking():
+    """Run anti-tracking/telemetry script (requires Admin)."""
+    script = BLACKWALL_DIR / "config" / "anti_tracking.ps1"
+    if not script.exists():
+        print(f"[BLACKWALL] ERROR: Anti-tracking script not found: {script}")
+        return
+    os.system(f'powershell -ExecutionPolicy Bypass -File "{script}"')
+
+
+def generate_report_cmd():
+    """Generate HTML security report from current logs."""
+    config = load_config()
+    log_dir = str(BLACKWALL_DIR / config.get("logging", {}).get("log_dir", "logs"))
+
+    hm = HoneypotManager(config, log_dir=log_dir)
+    ab = AutoBan(config, log_dir=log_dir)
+    ids_i = IntrusionDetector(config, log_dir=log_dir)
+    ti = ThreatIntelChecker(config.get("threat_intel", {}), log_dir=log_dir)
+
+    from blackwall.utils.report_generator import generate_report
+    rp = generate_report(
+        honeypot_manager=hm,
+        auto_ban=ab,
+        intrusion_detector=ids_i,
+        threat_intel=ti,
+        output_dir=str(BLACKWALL_DIR / "reports"),
+    )
+    print(f"[BLACKWALL] Report generated: {rp}")
+    try:
+        os.startfile(rp)
+    except Exception:
+        print(f"[BLACKWALL] Open manually: {rp}")
+
+
+def print_help():
+    """Print CLI usage information."""
+    print(r"""
+ ╔══════════════════════════════════════════════════════════════╗
+ ║              BLACKWALL v4.0 - Command Reference             ║
+ ╠══════════════════════════════════════════════════════════════╣
+ ║                                                              ║
+ ║  python blackwall.py              Start full monitoring      ║
+ ║  python blackwall.py harden       Firewall hardening (Admin) ║
+ ║  python blackwall.py antitrack    Anti-tracking (Admin)      ║
+ ║  python blackwall.py all          Everything (Admin)         ║
+ ║  python blackwall.py report       Generate HTML report       ║
+ ║  python blackwall.py help         This message               ║
+ ║                                                              ║
+ ╚══════════════════════════════════════════════════════════════╝
+""")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Entry Point
+# ═══════════════════════════════════════════════════════════════════════════
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        cmd = sys.argv[1].lower()
+        commands = {
+            "harden": run_firewall_hardening,
+            "antitrack": run_anti_tracking,
+            "report": generate_report_cmd,
+            "help": print_help,
+        }
+
+        if cmd in commands:
+            commands[cmd]()
+        elif cmd == "all":
+            run_firewall_hardening()
+            print()
+            run_anti_tracking()
+            print()
+            asyncio.run(main())
+        else:
+            print(f"[BLACKWALL] Unknown command: {cmd}")
+            print_help()
+    else:
+        asyncio.run(main())
