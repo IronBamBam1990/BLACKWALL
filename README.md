@@ -106,7 +106,7 @@ On March 19, 2026, attackers compromised **Trivy** (a security scanner), used st
 - **Threat Scoring** — Weighted multi-factor scoring with TOR/country multipliers (LOW/MEDIUM/HIGH/CRITICAL)
 - **Auto-Ban** — Automatic Windows Firewall rule creation for confirmed threats
 
-### Monitor Grid (24 modules)
+### Monitor Grid (30 modules)
 
 | Module | What It Does |
 |--------|-------------|
@@ -126,10 +126,12 @@ On March 19, 2026, attackers compromised **Trivy** (a security scanner), used st
 | Canary Tokens | Fake credentials deployed as tripwires |
 | Rate Limiter | Per-IP connection limiting with tarpit (5s delay after 3 attempts) |
 | Threat Intel | 5 free feeds (ET, Feodo, TOR exits, Blocklist.de, CINS Army) |
+| **RAM Checker** | Scans process memory for credential exposure (AWS/OpenAI/Stripe keys in env vars), detects crypto miners (xmrig), credential dumpers (mimikatz, lazagne), reverse shells, processes running from temp dirs, base64-encoded PowerShell, and memory pressure anomalies |
+| **TeamPCP Detector** | Dedicated scanner for the March 2026 TeamPCP/Trivy/LiteLLM supply chain attack — checks for persistence artifacts (fake sysmon.py, malicious scheduled tasks), exfil staging files (tpcp.tar.gz, session.key, payload.enc), malicious `.pth` files (litellm_init.pth), C2 domains (models.litellm.cloud, checkmarx.zone), compromised package versions (litellm 1.82.7/1.82.8, trivy 0.69.4-0.69.6), Kubernetes node-setup pods, and npm CanisterWorm indicators |
 
 ### Supply Chain Defense (v4.0)
 
-The modules that make BLACKWALL unique — purpose-built to detect attacks like the LiteLLM/Trivy compromise.
+Purpose-built to detect attacks like the TeamPCP/Trivy/LiteLLM compromise that hit 97M monthly downloads and yielded 500,000 stolen credentials across five package ecosystems in two weeks.
 
 | Module | What It Does |
 |--------|-------------|
