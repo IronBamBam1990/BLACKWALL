@@ -221,21 +221,24 @@ def main():
     threading.Thread(target=_run_network_monitor, daemon=True, name="network_monitor").start()
 
     # ---- Supply chain modules: each gets own asyncio event loop in own thread ----
-    def _run_async_module(name, coro_func):
-        """Start an async module's start() in its own event loop + thread."""
+    def _run_async_module(name, module):
+        """Start an async module and keep its event loop alive forever."""
         def _runner():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             try:
-                loop.run_until_complete(coro_func())
+                # Start the module (creates background tasks)
+                loop.run_until_complete(module.start())
+                # Keep the loop running so tasks don't die
+                loop.run_forever()
             except Exception as e:
                 print(f"[BLACKWALL] {name} error: {e}")
         threading.Thread(target=_runner, daemon=True, name=name).start()
 
-    _run_async_module("supply_chain", supply_chain.start)
-    _run_async_module("credential_monitor", credential_monitor.start)
-    _run_async_module("dependency_auditor", dependency_auditor.start)
-    _run_async_module("container_monitor", container_monitor.start)
+    _run_async_module("supply_chain", supply_chain)
+    _run_async_module("credential_monitor", credential_monitor)
+    _run_async_module("dependency_auditor", dependency_auditor)
+    _run_async_module("container_monitor", container_monitor)
 
     # ---- Deploy canary tokens before scan loops ----
     try:
