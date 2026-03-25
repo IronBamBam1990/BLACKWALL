@@ -235,12 +235,15 @@ class WebDashboard:
 
     def _collect_status(self) -> dict:
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        net_data = self._get_network()
         return {
             "time": now,
             "honeypots": self._get_honeypots(),
             "alerts": self._get_alerts(),
             "banned": self._get_banned(),
-            "network": self._get_network(),
+            "network": net_data,
+            "connections": net_data.get("connections", []),
+            "whitelist": self._get_whitelist(),
             "countries": self._get_countries(),
             "feeds": self._get_feeds(),
             "attackers": self._get_attackers(),
@@ -330,27 +333,52 @@ class WebDashboard:
         except Exception:
             return []
 
+    # -- whitelist -----------------------------------------------------
+
+    def _get_whitelist(self) -> list:
+        try:
+            if not self.auto_ban:
+                return []
+            return [str(x) for x in getattr(self.auto_ban, "whitelist", [])]
+        except Exception:
+            return []
+
     # -- network -------------------------------------------------------
 
     def _get_network(self) -> dict:
         try:
             if not self.net_monitor:
                 return {"established": 0, "listeners": 0, "bytes_sent": 0,
-                        "bytes_recv": 0, "errors": 0}
+                        "bytes_recv": 0, "errors": 0, "connections": []}
             s = self.net_monitor.get_network_stats()
             c = self.net_monitor.get_active_connections()
             est = sum(1 for x in c if x.get("status") == "ESTABLISHED")
             lis = sum(1 for x in c if x.get("status") == "LISTEN")
+
+            # Build connections list for the frontend
+            conn_list = []
+            for conn in c[:150]:
+                local = conn.get("local_addr", "")
+                remote = conn.get("remote_addr", "")
+                conn_list.append({
+                    "local_port": local.rsplit(":", 1)[-1] if ":" in local else local,
+                    "remote_ip": remote.rsplit(":", 1)[0] if ":" in remote else remote,
+                    "remote_port": remote.rsplit(":", 1)[-1] if ":" in remote else "",
+                    "status": conn.get("status", ""),
+                    "process": conn.get("process", "unknown"),
+                })
+
             return {
                 "established": est,
                 "listeners": lis,
                 "bytes_sent": s.get("bytes_sent", 0),
                 "bytes_recv": s.get("bytes_recv", 0),
                 "errors": s.get("errors_in", 0) + s.get("errors_out", 0),
+                "connections": conn_list,
             }
         except Exception:
             return {"established": 0, "listeners": 0, "bytes_sent": 0,
-                    "bytes_recv": 0, "errors": 0}
+                    "bytes_recv": 0, "errors": 0, "connections": []}
 
     # -- countries -----------------------------------------------------
 
