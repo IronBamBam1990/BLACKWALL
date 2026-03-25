@@ -132,17 +132,28 @@ def main():
     teampcp_detector = TeamPCPDetector(config=config.get("teampcp_detector", {}), log_dir=log_dir)
 
     # ---- Instantiate supply chain modules ----
+    def _sc_alert(event):
+        try:
+            alert_mgr.handle_alert({
+                "type": "SUPPLY_CHAIN_" + str(event.get("type", "")),
+                "severity": event.get("severity", "HIGH"),
+                "description": event.get("description", ""),
+                "timestamp": event.get("timestamp", ""),
+            })
+        except Exception:
+            pass
+
     supply_chain = SupplyChainGuardian(
-        config=config.get("supply_chain", {}), log_dir=log_dir,
+        config=config.get("supply_chain", {}), alert_callback=_sc_alert, log_dir=log_dir,
     )
     credential_monitor = CredentialVaultMonitor(
-        config=config.get("credential_monitor", {}), log_dir=log_dir,
+        config=config.get("credential_monitor", {}), alert_callback=_sc_alert, log_dir=log_dir,
     )
     dependency_auditor = DependencyAuditor(
-        log_dir=log_dir,
+        alert_callback=_sc_alert, log_dir=log_dir,
     )
     container_monitor = ContainerSecurityMonitor(
-        config=config.get("container_monitor", {}), log_dir=log_dir,
+        alert_callback=_sc_alert, config=config.get("container_monitor", {}), log_dir=log_dir,
     )
 
     # Wire events
