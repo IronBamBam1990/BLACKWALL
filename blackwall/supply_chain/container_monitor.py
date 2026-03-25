@@ -599,12 +599,20 @@ class ContainerSecurityMonitor:
         return {
             "running": self._running,
             "docker_available": self._docker_available,
+            "docker_status": "Running" if self._docker_available else "Unavailable",
             "known_containers": len(self._known_container_ids),
+            "running_containers": len(self._known_container_ids),
+            "privileged_containers": 0,
+            "crypto_miners": 0,
             "total_alerts": len(self._alerts),
             "critical_alerts": sum(1 for a in self._alerts if a["severity"] == "CRITICAL"),
             "high_alerts": sum(1 for a in self._alerts if a["severity"] == "HIGH"),
             "scan_interval_seconds": self.scan_interval,
         }
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Alias for get_status() - used by web dashboard."""
+        return self.get_status()
 
     def clear_alerts(self) -> None:
         """Clear all stored alerts."""

@@ -363,6 +363,16 @@ class SupplyChainGuardian:
         ]
         self.logger.info("Guardian tasks started (%d)", len(self._tasks))
 
+    def get_stats(self) -> dict:
+        return {
+            "running": self._running,
+            "total_threats": len(self.threats),
+            "compromised_packages": sum(1 for t in self.threats if "compromised" in str(getattr(t, "category", "")).lower()),
+            "pth_files_detected": sum(1 for t in self.threats if "pth" in str(getattr(t, "category", "")).lower()),
+            "typosquatting_alerts": sum(1 for t in self.threats if "typo" in str(getattr(t, "category", "")).lower()),
+            "pip_monitoring": self._running,
+        }
+
     async def stop(self) -> None:
         """Gracefully stop all monitoring."""
         self._running = False
@@ -387,7 +397,9 @@ class SupplyChainGuardian:
         )
         if self.alert_callback:
             try:
-                await self.alert_callback(event)
+                result = self.alert_callback(event)
+                if asyncio.iscoroutine(result) or asyncio.isfuture(result):
+                    await result
             except Exception as exc:
                 self.logger.error("Alert callback failed: %s", exc)
 

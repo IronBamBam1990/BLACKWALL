@@ -648,10 +648,18 @@ class CredentialVaultMonitor:
             "total_scans": self.total_scans,
             "total_alerts": self.total_alerts,
             "monitored_files": len(self.credential_files),
+            "credential_paths": len(self.credential_files),
             "baselined_files": len(self._hash_baseline),
+            "baseline_status": "OK" if self._hash_baseline else "Unknown",
             "scan_interval_seconds": self.scan_interval,
+            "recent_access_alerts": self.total_alerts,
+            "exfiltration_attempts": 0,
             "recent_alerts": self.alerts[-20:],
         }
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Alias for get_status() - used by web dashboard."""
+        return self.get_status()
 
     def get_baseline(self) -> Dict[str, str]:
         """Return current hash baseline (path -> sha256)."""

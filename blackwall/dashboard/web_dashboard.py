@@ -14,6 +14,8 @@ from datetime import datetime, timezone
 
 import psutil
 
+from blackwall.honeypots.catchall_honeypot import CATCH_ALL_PORTS
+
 try:
     from flask import Flask, jsonify, render_template, request
 except ImportError:
@@ -81,7 +83,7 @@ class WebDashboard:
     # ------------------------------------------------------------------
 
     def _create_app(self) -> Flask:
-        app = Flask(__name__, template_folder="templates")
+        app = Flask(__name__, template_folder=os.path.join(os.path.dirname(__file__), "templates"))
         app.config["JSONIFY_PRETTYPRINT_REGULAR"] = False
 
         # Silence Flask/Werkzeug request logging
@@ -379,8 +381,7 @@ class WebDashboard:
             catchall_enabled = catchall_cfg.get("enabled", True)
             catchall_hits = by_type.get("catchall", 0)
 
-            # Get the actual ports from the catch-all honeypot
-            from blackwall.honeypots.catchall_honeypot import CATCH_ALL_PORTS
+            # Get the actual ports from the catch-all honeypot (imported at top)
             dedicated_ports = {cfg.get("port", 0) for n, cfg in hp_config.items() if n != "catchall"}
 
             for port in CATCH_ALL_PORTS:
@@ -828,7 +829,7 @@ class WebDashboard:
             return {
                 "running": running,
                 "docker_available": running or docker in ("Running", "Active", "OK"),
-                "running": s.get("running_containers", 0),
+                "running_containers": s.get("running_containers", 0),
                 "privileged": s.get("privileged_containers", 0),
                 "crypto_miners": s.get("crypto_miners", 0),
             }
