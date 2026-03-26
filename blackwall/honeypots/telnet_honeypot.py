@@ -97,6 +97,7 @@ $db_name = 'production_db';
 $secret_key = 'a1b2c3d4e5f6g7h8i9j0_FAKE_HONEYPOT';
 ?>
 """},
+    # HONEYPOT BAIT - all credentials below are fake decoys to lure attackers
     "/var/www/html/.env": {"type": "file", "content": """APP_ENV=production
 APP_DEBUG=false
 DB_CONNECTION=mysql

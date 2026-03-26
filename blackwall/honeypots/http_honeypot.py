@@ -78,6 +78,7 @@ button{background:#e76f51;color:#fff;border:none;padding:10px 20px;border-radius
 <div class="version">phpMyAdmin 5.2.1 | MySQL 5.7.42</div>
 </div></body></html>"""
 
+# HONEYPOT BAIT - all credentials below are fake decoys to lure attackers
 PAGE_ENV = """APP_NAME=ProductionApp
 APP_ENV=production
 APP_KEY=base64:aBcDeFgHiJkLmNoPqRsTuVwXyZ123456789FAKE=
