@@ -136,7 +136,7 @@ Purpose-built to detect attacks like the TeamPCP/Trivy/LiteLLM compromise that h
 
 | Module | What It Does |
 |--------|-------------|
-| **Supply Chain Guardian** | Detects `.pth` file attacks (the exact LiteLLM vector), malicious `setup.py`, compromised package database, pip process monitoring, typosquatting detection via Levenshtein distance, npm preinstall/postinstall script scanning |
+| **Supply Chain Guardian** | Detects `.pth` file attacks (the exact LiteLLM vector), malicious `setup.py`, compromised package database (19 known malicious packages including axios CVE-2026-AXIOS), pip process monitoring, typosquatting detection via Levenshtein distance, npm preinstall/postinstall script scanning |
 | **Credential Vault Monitor** | Watches `.env`, SSH keys, AWS/GCP/K8s credentials, Docker auth, crypto wallets, browser password stores. SHA-256 baselines, process tracking, multi-file exfiltration detection |
 | **Dependency Auditor** | Full dependency tree mapping, transitive dependency risk scoring, package integrity verification against PyPI, abandoned package detection (>2yr), circular dependency detection, npm audit integration |
 | **Container Security** | Privileged container detection, dangerous capability flags, host mount scanning, crypto miner process detection, untrusted registry alerts, Docker Compose security scanning |
@@ -266,7 +266,7 @@ geoip2>=4.8.0         # GeoIP lookups (optional)
 
 In Cyberpunk 2077, the Blackwall is a protective barrier created by NetWatch — a powerful AI masquerading as ICE, whose job is to keep rogue AIs from destroying what's left of the Net. It's humanity's last line of defense.
 
-In the real world, supply chain attacks are the rogue AIs. They hide inside trusted packages, propagate through dependency chains, and compromise everything they touch. The LiteLLM attack proved that a single poisoned package can exfiltrate credentials from thousands of production environments in hours.
+In the real world, supply chain attacks are the rogue AIs. They hide inside trusted packages, propagate through dependency chains, and compromise everything they touch. The LiteLLM attack proved that a single poisoned package can exfiltrate credentials from thousands of production environments in hours. On March 30, 2026, North Korean threat actors (UNC1069/Sapphire Sleet) compromised the axios npm package — 100M weekly downloads — injecting a cross-platform RAT via a malicious `plain-crypto-js` postinstall hook. BLACKWALL's Supply Chain Guardian now detects both the compromised axios versions and the malicious loader package.
 
 **BLACKWALL** is our answer. Deploy it. Let the wall hold.
 

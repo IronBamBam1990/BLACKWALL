@@ -133,6 +133,18 @@ KNOWN_COMPROMISED: Dict[str, Dict[str, Any]] = {
         "reason": "npm hijack - injects crypto wallet drainer into web pages",
         "severity": SEVERITY_CRITICAL,
     },
+    # Axios supply chain attack - March 30, 2026 (North Korea / UNC1069 / Sapphire Sleet)
+    "axios": {
+        "compromised_versions": ["1.7.1", "1.7.2"],
+        "reason": "Compromised maintainer account - postinstall hook drops cross-platform RAT via plain-crypto-js from sfrclak[.]com:8000",
+        "severity": SEVERITY_CRITICAL,
+        "cve": "CVE-2026-AXIOS",
+    },
+    "plain-crypto-js": {
+        "compromised_versions": ["*"],
+        "reason": "Malicious package from axios supply chain attack - stage-2 RAT loader for Windows/macOS/Linux",
+        "severity": SEVERITY_CRITICAL,
+    },
 }
 
 # Popular packages to detect typosquatting against

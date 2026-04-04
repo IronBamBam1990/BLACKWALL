@@ -217,6 +217,7 @@ class NetworkMonitor:
         "spoolsv.exe", "nortonsvc.exe", "lghub_agent.exe", "lghub_updater.exe",
         "steam.exe", "discord.exe", "code.exe", "onedrive.sync.service.exe",
         "jhi_service.exe", "iscsiagent.exe", "python.exe", "python3.exe",
+        "warp-svc.exe",
     }
 
     def check_new_listeners(self) -> list:
